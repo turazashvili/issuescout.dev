@@ -163,7 +163,8 @@ export async function searchIssues(
   language: string = "",
   first: number = 20,
   after: string | null = null,
-  userToken?: string
+  userToken?: string,
+  options?: { minStars?: number; minForks?: number; sort?: string }
 ): Promise<{
   issues: GitHubIssue[];
   totalCount: number;
@@ -183,6 +184,26 @@ export async function searchIssues(
 
   if (language) {
     searchQuery += ` language:${language}`;
+  }
+
+  // Note: stars: and forks: qualifiers only work for repository search (type:REPOSITORY),
+  // NOT for issue search (type:ISSUE). For issues, they get treated as text search
+  // and match issue body content. Star/fork filtering is done post-fetch in the API route.
+
+  // Map sort to GitHub search qualifier
+  // GitHub issue search supports: sort:created, sort:comments, sort:updated, sort:reactions
+  // stars/forks sort is NOT supported for issues — handled client-side
+  if (options?.sort) {
+    switch (options.sort) {
+      case "oldest":
+        searchQuery += ` sort:created-asc`;
+        break;
+      case "most-commented":
+        searchQuery += ` sort:comments-desc`;
+        break;
+      // "newest" is GitHub's default (sort:created-desc)
+      // "most-stars", "most-forks", "health-score" can't be sorted server-side for issues
+    }
   }
 
   const result: {

@@ -8,6 +8,7 @@ export interface ICachedIssue extends Document {
   healthDetails: HealthDetails;
   difficulty: DifficultyLevel;
   difficultyReason: string;
+  difficultyUsedAI: boolean;
   repoOwner: string;
   repoName: string;
   language: string;
@@ -25,6 +26,7 @@ const CachedIssueSchema = new Schema<ICachedIssue>({
     default: "unknown",
   },
   difficultyReason: { type: String, default: "" },
+  difficultyUsedAI: { type: Boolean, default: false },
   repoOwner: { type: String, default: "" },
   repoName: { type: String, default: "" },
   language: { type: String, default: "" },

@@ -8,6 +8,7 @@ const openai = new OpenAI({
 interface DifficultyResult {
   difficulty: DifficultyLevel;
   reason: string;
+  usedAI: boolean;
 }
 
 export async function estimateDifficulty(
@@ -18,13 +19,13 @@ export async function estimateDifficulty(
   // First try rule-based estimation for speed
   const ruleBased = ruleBasedEstimation(title, body, labels);
   if (ruleBased.confidence > 0.8) {
-    return { difficulty: ruleBased.difficulty, reason: ruleBased.reason };
+    return { difficulty: ruleBased.difficulty, reason: ruleBased.reason, usedAI: false };
   }
 
   // Fall back to AI estimation
   try {
     if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === "sk-your-openai-api-key") {
-      return { difficulty: ruleBased.difficulty, reason: ruleBased.reason };
+      return { difficulty: ruleBased.difficulty, reason: ruleBased.reason, usedAI: false };
     }
 
     const truncatedBody = body?.slice(0, 1500) || "No description provided";
@@ -54,16 +55,16 @@ Respond with JSON only: {"difficulty": "easy"|"medium"|"hard", "reason": "brief 
 
     const content = response.choices[0]?.message?.content;
     if (content) {
-      const parsed = JSON.parse(content) as DifficultyResult;
+      const parsed = JSON.parse(content) as { difficulty: DifficultyLevel; reason: string };
       if (["easy", "medium", "hard"].includes(parsed.difficulty)) {
-        return parsed;
+        return { ...parsed, usedAI: true };
       }
     }
   } catch (error) {
     console.error("AI difficulty estimation failed:", error);
   }
 
-  return { difficulty: ruleBased.difficulty, reason: ruleBased.reason };
+  return { difficulty: ruleBased.difficulty, reason: ruleBased.reason, usedAI: false };
 }
 
 function ruleBasedEstimation(

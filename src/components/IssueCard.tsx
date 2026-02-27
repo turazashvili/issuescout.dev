@@ -13,14 +13,18 @@ import {
   GitFork,
   MessageSquare,
   Bookmark,
-  BookmarkCheck,
   ExternalLink,
   Clock,
+  Archive,
+  ArchiveRestore,
 } from "lucide-react";
 
 interface IssueCardProps {
-  issue: EnrichedIssue;
+  issue: EnrichedIssue & { isArchived?: boolean };
   onBookmarkToggle?: (issueId: string, isBookmarked: boolean) => void;
+  onArchiveToggle?: (issueId: string, isArchived: boolean) => void;
+  showArchiveButton?: boolean;
+  showUnarchiveButton?: boolean;
 }
 
 function timeAgo(dateString: string): string {
@@ -39,10 +43,17 @@ function timeAgo(dateString: string): string {
   return `${months}mo ago`;
 }
 
-export function IssueCard({ issue, onBookmarkToggle }: IssueCardProps) {
+export function IssueCard({
+  issue,
+  onBookmarkToggle,
+  onArchiveToggle,
+  showArchiveButton = false,
+  showUnarchiveButton = false,
+}: IssueCardProps) {
   const { data: session } = useSession();
   const [bookmarked, setBookmarked] = useState(issue.isBookmarked || false);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
+  const [archiveLoading, setArchiveLoading] = useState(false);
 
   const handleBookmark = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -53,12 +64,17 @@ export function IssueCard({ issue, onBookmarkToggle }: IssueCardProps) {
     const newState = !bookmarked;
 
     try {
+      // Strip isBookmarked/isArchived before sending as issueData
+      const { isBookmarked: _ib, ...issueData } = issue as EnrichedIssue & { isArchived?: boolean };
+      const { isArchived: _ia, ...cleanIssueData } = issueData;
+
       const res = await fetch("/api/issues/bookmark", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           issueId: issue.id,
           action: newState ? "add" : "remove",
+          ...(newState ? { issueData: cleanIssueData } : {}),
         }),
       });
 
@@ -73,17 +89,52 @@ export function IssueCard({ issue, onBookmarkToggle }: IssueCardProps) {
     }
   };
 
+  const handleArchive = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!session || archiveLoading) return;
+
+    setArchiveLoading(true);
+    const action = issue.isArchived ? "unarchive" : "archive";
+
+    try {
+      const res = await fetch("/api/issues/bookmark", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ issueId: issue.id, action }),
+      });
+
+      if (res.ok) {
+        onArchiveToggle?.(issue.id, action === "archive");
+      }
+    } catch {
+      // ignore
+    } finally {
+      setArchiveLoading(false);
+    }
+  };
+
   const languageColor = issue.repository.primaryLanguage?.color || "#6b7280";
   const languageName = issue.repository.primaryLanguage?.name || "Unknown";
 
   return (
     <Card className="group relative overflow-hidden border-border/50 bg-card/50 p-5 transition-all duration-200 hover:border-border hover:shadow-lg hover:shadow-emerald-500/5">
-      {/* Match score indicator */}
-      {issue.matchScore && (
-        <div className="absolute right-0 top-0 rounded-bl-lg bg-gradient-to-br from-emerald-500 to-cyan-500 px-2.5 py-1 text-xs font-bold text-white">
-          {issue.matchScore}% match
-        </div>
-      )}
+      {/* Top-right actions */}
+      <div className="absolute right-2 top-2 flex items-center gap-1">
+        {issue.matchScore && (
+          <span className="rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500 px-2 py-0.5 text-xs font-bold text-white">
+            {issue.matchScore}% match
+          </span>
+        )}
+        <a
+          href={issue.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+      </div>
 
       {/* Header: repo info */}
       <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
@@ -115,11 +166,9 @@ export function IssueCard({ issue, onBookmarkToggle }: IssueCardProps) {
         href={issue.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="group/link"
       >
-        <h3 className="mb-2 text-base font-semibold leading-snug transition-colors group-hover/link:text-emerald-500">
+        <h3 className="mb-2 pr-16 text-base font-semibold leading-snug transition-colors hover:text-emerald-500">
           {issue.title}
-          <ExternalLink className="ml-1 inline h-3.5 w-3.5 opacity-0 transition-opacity group-hover/link:opacity-100" />
         </h3>
       </a>
 
@@ -162,6 +211,7 @@ export function IssueCard({ issue, onBookmarkToggle }: IssueCardProps) {
         <DifficultyBadge
           difficulty={issue.difficulty}
           reason={issue.difficultyReason}
+          usedAI={issue.difficultyUsedAI}
         />
       </div>
 
@@ -187,19 +237,46 @@ export function IssueCard({ issue, onBookmarkToggle }: IssueCardProps) {
         </div>
 
         {session && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={handleBookmark}
-            disabled={bookmarkLoading}
-          >
-            {bookmarked ? (
-              <BookmarkCheck className="h-4 w-4 text-emerald-500" />
-            ) : (
-              <Bookmark className="h-4 w-4 text-muted-foreground" />
+          <div className="flex items-center gap-1">
+            {showArchiveButton && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={handleArchive}
+                disabled={archiveLoading}
+                title="Archive"
+              >
+                <Archive className="h-4 w-4 text-muted-foreground hover:text-blue-500" />
+              </Button>
             )}
-          </Button>
+            {showUnarchiveButton && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={handleArchive}
+                disabled={archiveLoading}
+                title="Unarchive"
+              >
+                <ArchiveRestore className="h-4 w-4 text-muted-foreground hover:text-emerald-500" />
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={handleBookmark}
+              disabled={bookmarkLoading}
+              title={bookmarked ? "Remove bookmark" : "Bookmark"}
+            >
+              {bookmarked ? (
+                <Bookmark className="h-4 w-4 fill-amber-400 text-amber-400" />
+              ) : (
+                <Bookmark className="h-4 w-4 text-muted-foreground" />
+              )}
+            </Button>
+          </div>
         )}
       </div>
     </Card>

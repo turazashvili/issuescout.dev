@@ -7,10 +7,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { DifficultyLevel } from "@/types";
+import { Sparkles } from "lucide-react";
 
 interface DifficultyBadgeProps {
   difficulty: DifficultyLevel;
   reason?: string;
+  usedAI?: boolean;
   size?: "sm" | "md";
 }
 
@@ -47,6 +49,7 @@ const config: Record<
 export function DifficultyBadge({
   difficulty,
   reason,
+  usedAI,
   size = "sm",
 }: DifficultyBadgeProps) {
   const c = config[difficulty];
@@ -69,16 +72,34 @@ export function DifficultyBadge({
         {c.icon}
       </span>
       {c.label}
+      {usedAI && (
+        <Sparkles className={cn(
+          "text-violet-500",
+          size === "sm" ? "h-3 w-3" : "h-3.5 w-3.5"
+        )} />
+      )}
     </div>
   );
 
-  if (!reason) return badge;
+  const tooltipText = usedAI
+    ? `AI-analyzed: ${reason}`
+    : reason;
+
+  if (!tooltipText) return badge;
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>{badge}</TooltipTrigger>
       <TooltipContent side="bottom" className="max-w-xs text-sm">
-        {reason}
+        <div className="space-y-1">
+          <p>{reason}</p>
+          {usedAI && (
+            <p className="flex items-center gap-1 text-xs text-violet-400">
+              <Sparkles className="h-3 w-3" />
+              Analyzed by GPT-4o
+            </p>
+          )}
+        </div>
       </TooltipContent>
     </Tooltip>
   );
