@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ThemeToggle } from "./ThemeToggle";
 import {
-  GitBranch,
   Bookmark,
   LogOut,
   Sparkles,
@@ -21,6 +20,7 @@ import {
   Github,
   Settings,
 } from "lucide-react";
+import { IssueScoutIcon } from "./IssueScoutLogo";
 
 export function Header() {
   const { data: session } = useSession();
@@ -31,7 +31,7 @@ export function Header() {
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-cyan-500">
-              <GitBranch className="h-4 w-4 text-white" />
+              <IssueScoutIcon className="h-4 w-4 text-white" />
             </div>
             <span className="text-lg font-bold tracking-tight">
               IssueScout

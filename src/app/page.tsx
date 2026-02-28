@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Search,
-  GitBranch,
   Shield,
   Brain,
   Sparkles,
@@ -19,6 +18,7 @@ import {
   Heart,
   ExternalLink,
 } from "lucide-react";
+import { IssueScoutIcon } from "@/components/IssueScoutLogo";
 
 const FEATURED_LANGUAGES = [
   { name: "JavaScript", color: "#f1e05a" },
@@ -208,7 +208,7 @@ export default function HomePage() {
               variant="outline"
               className="mb-6 gap-1.5 border-emerald-500/30 bg-emerald-500/5 px-4 py-1.5 text-sm text-emerald-600 dark:text-emerald-400"
             >
-              <GitBranch className="h-3.5 w-3.5" />
+              <IssueScoutIcon className="h-3.5 w-3.5" />
               Your gateway to open source
             </Badge>
 
@@ -409,7 +409,7 @@ export default function HomePage() {
       <footer className="border-t border-border/40 bg-card/30">
         <div className="container mx-auto flex items-center justify-between px-4 py-6">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <GitBranch className="h-4 w-4" />
+            <IssueScoutIcon className="h-4 w-4" />
             <span>IssueScout</span>
           </div>
           <p className="text-sm text-muted-foreground">
