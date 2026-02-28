@@ -15,15 +15,61 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const SITE_URL = "https://issuescout-delta.vercel.app";
+
 export const metadata: Metadata = {
-  title: "IssueScout - Your Gateway to Open Source",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "IssueScout - Find Your First Open Source Contribution",
+    template: "%s | IssueScout",
+  },
   description:
     "Discover beginner-friendly open source issues with community health scores, AI difficulty ratings, and personalized recommendations. Make your first contribution with confidence.",
+  keywords: [
+    "open source",
+    "good first issue",
+    "first contribution",
+    "beginner friendly",
+    "github issues",
+    "open source contribution",
+    "issue finder",
+    "community health score",
+    "AI difficulty estimation",
+    "open source discovery",
+    "hacktoberfest",
+    "help wanted",
+    "first timers only",
+  ],
+  authors: [{ name: "Nikoloz Turazashvili", url: "https://github.com/turazashvili" }],
+  creator: "IssueScout",
   openGraph: {
-    title: "IssueScout",
+    title: "IssueScout - Find Your First Open Source Contribution",
     description:
-      "Scout your first open source contribution with intelligent issue discovery",
+      "Discover beginner-friendly issues enriched with health scores, AI difficulty ratings, and personalized recommendations.",
+    url: SITE_URL,
+    siteName: "IssueScout",
     type: "website",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "IssueScout - Find Your First Open Source Contribution",
+    description:
+      "Discover beginner-friendly issues enriched with health scores, AI difficulty ratings, and personalized recommendations.",
+  },
+  alternates: {
+    canonical: SITE_URL,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
   },
 };
 

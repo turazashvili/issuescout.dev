@@ -112,6 +112,10 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed documentation of t
 - Include steps to reproduce for bugs
 - Include the expected vs actual behavior
 
+## Supported By
+
+IssueScout is supported by [Vexrail](https://vexrail.com?utm_source=github&utm_medium=contributing_docs&utm_campaign=issuescout).
+
 ## License
 
 By contributing, you agree that your contributions will be licensed under the [MIT License](LICENSE).

@@ -143,7 +143,7 @@ export default function IssueDetailPage({
         <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
           <img
             src={issue.repository.owner.avatarUrl}
-            alt=""
+            alt={`${issue.repository.owner.login} avatar`}
             className="h-5 w-5 rounded-full"
           />
           <a
@@ -211,7 +211,7 @@ export default function IssueDetailPage({
             <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
               <img
                 src={issue.author.avatarUrl}
-                alt=""
+                alt={`${issue.author.login} avatar`}
                 className="h-6 w-6 rounded-full"
               />
               <span className="font-medium text-foreground">
@@ -246,14 +246,14 @@ export default function IssueDetailPage({
         <div className="space-y-4">
           {/* Repo info card */}
           <Card className="p-4">
-            <h3 className="mb-3 text-sm font-semibold">Repository</h3>
+            <h2 className="mb-3 text-sm font-semibold">Repository</h2>
             <div className="space-y-3 text-sm">
               <div className="flex items-center gap-2">
                 <img
-                  src={issue.repository.owner.avatarUrl}
-                  alt=""
-                  className="h-8 w-8 rounded-full"
-                />
+                   src={issue.repository.owner.avatarUrl}
+                   alt={`${issue.repository.owner.login} avatar`}
+                   className="h-8 w-8 rounded-full"
+                 />
                 <div>
                   <p className="font-medium">
                     {issue.repository.nameWithOwner}
@@ -305,10 +305,10 @@ export default function IssueDetailPage({
           {/* Health report card */}
           {healthDetails && (
             <Card className="p-4">
-              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
                 <Shield className="h-4 w-4 text-emerald-500" />
                 Community Health Report
-              </h3>
+              </h2>
               <div className="space-y-2.5 text-sm">
                 <HealthRow
                   label="CONTRIBUTING.md"
@@ -357,10 +357,10 @@ export default function IssueDetailPage({
 
           {/* Quick actions */}
           <Card className="p-4">
-            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
               <FileText className="h-4 w-4" />
               Getting Started
-            </h3>
+            </h2>
             <div className="space-y-2 text-xs text-muted-foreground">
               <p>1. Read the issue description carefully</p>
               <p>2. Check the CONTRIBUTING.md guide</p>

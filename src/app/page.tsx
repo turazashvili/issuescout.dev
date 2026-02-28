@@ -138,8 +138,35 @@ export default function HomePage() {
     router.push(`/explore?language=${encodeURIComponent(lang)}`);
   };
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "IssueScout",
+    url: "https://issuescout-delta.vercel.app",
+    description:
+      "Discover beginner-friendly open source issues with community health scores, AI difficulty ratings, and personalized recommendations.",
+    potentialAction: {
+      "@type": "SearchAction",
+      target: {
+        "@type": "EntryPoint",
+        urlTemplate:
+          "https://issuescout-delta.vercel.app/explore?q={search_term_string}",
+      },
+      "query-input": "required name=search_term_string",
+    },
+    sponsor: {
+      "@type": "Organization",
+      name: "Vexrail",
+      url: "https://vexrail.com?utm_source=issuescout&utm_medium=jsonld&utm_campaign=issuescout",
+    },
+  };
+
   return (
     <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* GitHub Star Banner */}
       <div className="border-b border-border/40 bg-muted/40">
         <div className="container mx-auto px-4 py-2.5">
@@ -384,7 +411,15 @@ export default function HomePage() {
             <span>IssueScout</span>
           </div>
           <p className="text-sm text-muted-foreground">
-            Built for the open source community
+            Built for the open source community. Supported by{" "}
+            <a
+              href="https://vexrail.com?utm_source=issuescout&utm_medium=website_footer&utm_campaign=issuescout"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-foreground/70 underline decoration-foreground/30 underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground/60"
+            >
+              Vexrail
+            </a>
           </p>
         </div>
       </footer>
