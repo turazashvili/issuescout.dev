@@ -18,6 +18,7 @@ import {
   Users,
   Code2,
   Heart,
+  CheckCircle2,
 } from "lucide-react";
 
 const FEATURED_LANGUAGES = [
@@ -63,6 +64,9 @@ const STATIC_STATS = [
 export default function HomePage() {
   const [query, setQuery] = useState("");
   const [reposIndexed, setReposIndexed] = useState<number | null>(null);
+  const [surveyVote, setSurveyVote] = useState<"yes" | "no" | null>(null);
+  const [surveyResults, setSurveyResults] = useState<{ yes: number; no: number } | null>(null);
+  const [surveyLoading, setSurveyLoading] = useState(false);
   const router = useRouter();
   const { data: session } = useSession();
 
@@ -88,6 +92,38 @@ export default function HomePage() {
       .catch(() => {});
   }, []);
 
+  // Load survey state from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("survey-opensource-vote");
+    if (saved === "yes" || saved === "no") {
+      setSurveyVote(saved);
+      fetch("/api/survey")
+        .then((res) => res.json())
+        .then((data) => setSurveyResults(data))
+        .catch(() => {});
+    }
+  }, []);
+
+  const handleSurveyVote = async (vote: "yes" | "no") => {
+    if (surveyVote || surveyLoading) return;
+    setSurveyLoading(true);
+    try {
+      const res = await fetch("/api/survey", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vote }),
+      });
+      const data = await res.json();
+      setSurveyVote(vote);
+      setSurveyResults(data);
+      localStorage.setItem("survey-opensource-vote", vote);
+    } catch {
+      // silently fail
+    } finally {
+      setSurveyLoading(false);
+    }
+  };
+
   const handleSearch = () => {
     const params = new URLSearchParams();
     if (query) params.set("q", query);
@@ -100,6 +136,65 @@ export default function HomePage() {
 
   return (
     <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+      {/* Survey Banner */}
+      <div className="border-b border-border/40 bg-muted/40">
+        <div className="container mx-auto px-4 py-3">
+          <div className="flex flex-col items-center justify-center gap-2 sm:flex-row sm:gap-4">
+            {!surveyVote ? (
+              <>
+                <span className="text-sm font-medium">
+                  Should we open source IssueScout?
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleSurveyVote("yes")}
+                    disabled={surveyLoading}
+                    className="h-7 gap-1.5 border-emerald-500/30 px-3 text-xs hover:border-emerald-500 hover:bg-emerald-500/10"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                    Yes, open source it
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleSurveyVote("no")}
+                    disabled={surveyLoading}
+                    className="h-7 px-3 text-xs"
+                  >
+                    No, keep it closed
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                  Thanks for voting!
+                </span>
+                {surveyResults && (() => {
+                  const total = surveyResults.yes + surveyResults.no;
+                  const yesPct = total > 0 ? Math.round((surveyResults.yes / total) * 100) : 0;
+                  return (
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-2 w-32 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                          style={{ width: `${yesPct}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {yesPct}% yes ({total} votes)
+                      </span>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Hero */}
       <section className="relative overflow-hidden">
         {/* Background gradient */}
