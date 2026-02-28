@@ -43,6 +43,9 @@ async function enrichIssues(
     labels: issue.labels.map((l) => l.name),
     repoFullName: issue.repository.nameWithOwner,
     language: issue.repository.primaryLanguage?.name || "",
+    stargazerCount: issue.repository.stargazerCount,
+    forkCount: issue.repository.forkCount,
+    description: issue.repository.description || "",
   }));
 
   const res = await fetch("/api/issues/enrich", {

@@ -3,10 +3,13 @@ import { auth } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/mongodb";
 import { User } from "@/models/User";
 import { CachedIssue } from "@/models/CachedIssue";
+import { IndexedRepo } from "@/models/IndexedRepo";
 import { fetchUserProfile, searchIssues } from "@/services/github";
 import { calculateHealthScore } from "@/services/healthScore";
 import { estimateDifficulty } from "@/services/difficulty";
 import type { EnrichedIssue, DifficultyLevel, HealthDetails, GitHubIssue } from "@/types";
+
+const STALE_THRESHOLD_MS = 48 * 60 * 60 * 1000; // 48 hours
 
 export async function GET() {
   try {
@@ -46,76 +49,108 @@ export async function GET() {
       });
     }
 
-    // Search for issues matching user's top languages
+    // Search for issues matching user's top languages (parallel)
     const searchLanguages = topLanguages.slice(0, 3);
-    const allRawIssues: { issue: GitHubIssue; lang: string }[] = [];
-
-    for (const lang of searchLanguages) {
-      const { issues } = await searchIssues(
-        "",
-        lang,
-        30,
-        null,
-        session.accessToken
-      );
-      for (const issue of issues) {
-        allRawIssues.push({ issue, lang });
-      }
-    }
-
-    // Check cache for all issues in one query
-    const issueIds = allRawIssues.map((r) => r.issue.id);
-    const cachedDocs = await CachedIssue.find({ issueId: { $in: issueIds } });
-    const cacheMap = new Map(cachedDocs.map((doc) => [doc.issueId, doc]));
-
-    // Separate cached from uncached
-    const cachedResults = new Map<string, { healthScore: number; healthDetails: HealthDetails; difficulty: DifficultyLevel; difficultyReason: string; difficultyUsedAI: boolean }>();
-    const uncachedRawIssues: { issue: GitHubIssue; lang: string }[] = [];
-
-    for (const entry of allRawIssues) {
-      const cached = cacheMap.get(entry.issue.id);
-      if (cached) {
-        cachedResults.set(entry.issue.id, {
-          healthScore: cached.healthScore,
-          healthDetails: cached.healthDetails as HealthDetails,
-          difficulty: cached.difficulty as DifficultyLevel,
-          difficultyReason: cached.difficultyReason,
-          difficultyUsedAI: cached.difficultyUsedAI || false,
-        });
-      } else {
-        uncachedRawIssues.push(entry);
-      }
-    }
-
-    // Deduplicate repos for health score calls
-    const uniqueRepos = new Map<string, { owner: string; name: string }>();
-    for (const { issue } of uncachedRawIssues) {
-      const fullName = issue.repository.nameWithOwner;
-      if (!uniqueRepos.has(fullName)) {
-        const [owner, name] = fullName.split("/");
-        uniqueRepos.set(fullName, { owner, name });
-      }
-    }
-
-    // Fetch health scores for unique repos in parallel
-    const repoHealthMap = new Map<string, { score: number; details: HealthDetails }>();
-    await Promise.all(
-      Array.from(uniqueRepos.entries()).map(async ([fullName, { owner, name }]) => {
-        try {
-          const result = await calculateHealthScore(owner, name, session.accessToken);
-          repoHealthMap.set(fullName, result);
-        } catch {
-          repoHealthMap.set(fullName, {
-            score: 0,
-            details: { score: 0, hasContributing: false, hasLicense: false, recentActivity: false, starCount: 0, communitySize: "unknown", responseTime: "unknown" },
-          });
-        }
+    const searchResults = await Promise.all(
+      searchLanguages.map(async (lang) => {
+        const { issues } = await searchIssues(
+          "",
+          lang,
+          30,
+          null,
+          session.accessToken
+        );
+        return issues.map((issue) => ({ issue, lang }));
       })
     );
+    const allRawIssues = searchResults.flat();
 
-    // Estimate difficulty for all uncached issues in parallel
+    // === DIFFICULTY: L1 cache (CachedIssue, 24h TTL) ===
+    const issueIds = allRawIssues.map((r) => r.issue.id);
+    const cachedDiffs = await CachedIssue.find({ issueId: { $in: issueIds } });
+    const diffCacheMap = new Map(cachedDiffs.map((doc) => [doc.issueId, doc]));
+
+    // === HEALTH: L2 cache (IndexedRepo, permanent, stale-while-revalidate) ===
+    const uniqueRepoNames = [...new Set(allRawIssues.map((r) => r.issue.repository.nameWithOwner))];
+    const indexedRepoDocs = await IndexedRepo.find({ fullName: { $in: uniqueRepoNames } });
+    const repoIndexMap = new Map(indexedRepoDocs.map((doc) => [doc.fullName, doc]));
+
+    const now = Date.now();
+    const repoHealthMap = new Map<string, { score: number; details: HealthDetails }>();
+    const staleRepos: string[] = [];
+    const missingRepos: string[] = [];
+
+    for (const repoName of uniqueRepoNames) {
+      const indexed = repoIndexMap.get(repoName);
+      if (!indexed) {
+        missingRepos.push(repoName);
+      } else {
+        repoHealthMap.set(repoName, {
+          score: indexed.healthScore,
+          details: indexed.healthDetails as HealthDetails,
+        });
+        if (now - indexed.lastEnrichedAt.getTime() > STALE_THRESHOLD_MS) {
+          staleRepos.push(repoName);
+        }
+      }
+    }
+
+    // Fetch health for MISSING repos (blocking)
+    if (missingRepos.length > 0) {
+      await Promise.all(
+        missingRepos.map(async (fullName) => {
+          const [owner, name] = fullName.split("/");
+          try {
+            const result = await calculateHealthScore(owner, name, session.accessToken);
+            repoHealthMap.set(fullName, result);
+
+            const sampleIssue = allRawIssues.find((r) => r.issue.repository.nameWithOwner === fullName)?.issue;
+            IndexedRepo.findOneAndUpdate(
+              { fullName },
+              {
+                fullName,
+                owner,
+                name,
+                healthScore: result.score,
+                healthDetails: result.details,
+                stargazerCount: sampleIssue?.repository.stargazerCount || 0,
+                forkCount: sampleIssue?.repository.forkCount || 0,
+                primaryLanguage: sampleIssue?.repository.primaryLanguage?.name || "",
+                description: sampleIssue?.repository.description || "",
+                lastEnrichedAt: new Date(),
+              },
+              { upsert: true }
+            ).catch(() => {});
+          } catch {
+            repoHealthMap.set(fullName, {
+              score: 0,
+              details: { score: 0, hasContributing: false, hasLicense: false, recentActivity: false, starCount: 0, communitySize: "unknown", responseTime: "unknown" },
+            });
+          }
+        })
+      );
+    }
+
+    // Background refresh stale repos (fire and forget)
+    if (staleRepos.length > 0) {
+      Promise.all(
+        staleRepos.map(async (fullName) => {
+          const [owner, name] = fullName.split("/");
+          try {
+            const result = await calculateHealthScore(owner, name, session.accessToken);
+            await IndexedRepo.findOneAndUpdate(
+              { fullName },
+              { healthScore: result.score, healthDetails: result.details, lastEnrichedAt: new Date() }
+            );
+          } catch {}
+        })
+      ).catch(() => {});
+    }
+
+    // === Estimate difficulty for uncached issues (parallel) ===
+    const uncachedIssues = allRawIssues.filter((r) => !diffCacheMap.has(r.issue.id));
     const difficultyResults = await Promise.all(
-      uncachedRawIssues.map(async ({ issue }) => {
+      uncachedIssues.map(async ({ issue }) => {
         const result = await estimateDifficulty(
           issue.title,
           issue.body || "",
@@ -124,27 +159,20 @@ export async function GET() {
         return { issueId: issue.id, ...result };
       })
     );
-    const difficultyMap = new Map(difficultyResults.map((d) => [d.issueId, d]));
+    const freshDiffMap = new Map(difficultyResults.map((d) => [d.issueId, d]));
 
-    // Cache uncached results (fire and forget)
-    for (const { issue } of uncachedRawIssues) {
-      const fullName = issue.repository.nameWithOwner;
-      const health = repoHealthMap.get(fullName);
-      const diff = difficultyMap.get(issue.id);
-      if (health && diff) {
-        const [owner, name] = fullName.split("/");
+    // Cache new difficulty results (fire and forget)
+    for (const { issue } of uncachedIssues) {
+      const diff = freshDiffMap.get(issue.id);
+      if (diff) {
         CachedIssue.findOneAndUpdate(
           { issueId: issue.id },
           {
             issueId: issue.id,
-            data: {},
-            healthScore: health.score,
-            healthDetails: health.details,
             difficulty: diff.difficulty,
             difficultyReason: diff.reason,
             difficultyUsedAI: diff.usedAI,
-            repoOwner: owner,
-            repoName: name,
+            repoFullName: issue.repository.nameWithOwner,
             language: issue.repository.primaryLanguage?.name || "",
             cachedAt: new Date(),
           },
@@ -153,32 +181,33 @@ export async function GET() {
       }
     }
 
-    // Build enriched issues with match scores
+    // === Build enriched issues with match scores ===
     const allIssues: EnrichedIssue[] = allRawIssues.map(({ issue, lang }) => {
-      // Get enrichment data (from cache or freshly computed)
-      const cached = cachedResults.get(issue.id);
-      const health = cached
-        ? { score: cached.healthScore, details: cached.healthDetails }
-        : repoHealthMap.get(issue.repository.nameWithOwner) || { score: 0, details: { score: 0, hasContributing: false, hasLicense: false, recentActivity: false, starCount: 0, communitySize: "unknown", responseTime: "unknown" } };
-      const diff = cached
-        ? { difficulty: cached.difficulty, reason: cached.difficultyReason, usedAI: cached.difficultyUsedAI }
-        : difficultyMap.get(issue.id) || { difficulty: "unknown" as DifficultyLevel, reason: "", usedAI: false };
+      const health = repoHealthMap.get(issue.repository.nameWithOwner) || {
+        score: 0,
+        details: { score: 0, hasContributing: false, hasLicense: false, recentActivity: false, starCount: 0, communitySize: "unknown", responseTime: "unknown" },
+      };
 
-      // Calculate match score (0-100)
+      const cachedDiff = diffCacheMap.get(issue.id);
+      const freshDiff = freshDiffMap.get(issue.id);
+      const diff = cachedDiff
+        ? { difficulty: cachedDiff.difficulty as DifficultyLevel, reason: cachedDiff.difficultyReason, usedAI: cachedDiff.difficultyUsedAI || false }
+        : freshDiff
+        ? { difficulty: freshDiff.difficulty as DifficultyLevel, reason: freshDiff.reason, usedAI: freshDiff.usedAI }
+        : { difficulty: "unknown" as DifficultyLevel, reason: "", usedAI: false };
+
+      // Match score (0-100)
       const langIndex = searchLanguages.indexOf(lang);
       const langScore = langIndex === 0 ? 50 : langIndex === 1 ? 35 : 20;
       const healthContribution = Math.round(health.score * 0.3);
       const difficultyBonus = diff.difficulty === "easy" ? 10 : diff.difficulty === "medium" ? 5 : 0;
-
       let matchScore = langScore + healthContribution + difficultyBonus;
 
-      // Boost score if repo description/topics match user's frameworks (+10)
       if (allTopics.length > 0 && issue.repository.description) {
         const desc = issue.repository.description.toLowerCase();
-        const frameworkMatch = allTopics.some((fw) =>
-          desc.includes(fw.toLowerCase())
-        );
-        if (frameworkMatch) matchScore += 10;
+        if (allTopics.some((fw) => desc.includes(fw.toLowerCase()))) {
+          matchScore += 10;
+        }
       }
 
       return {
@@ -192,10 +221,8 @@ export async function GET() {
       };
     });
 
-    // Sort by match score
+    // Sort by match score, deduplicate
     allIssues.sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0));
-
-    // Deduplicate
     const seen = new Set<string>();
     const unique = allIssues.filter((issue) => {
       if (seen.has(issue.id)) return false;
