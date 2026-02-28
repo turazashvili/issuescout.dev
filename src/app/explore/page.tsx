@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useSession, signIn } from "next-auth/react";
 import { IssueCard } from "@/components/IssueCard";
 import { IssueCardSkeleton } from "@/components/IssueCardSkeleton";
 import { FilterBar, DEFAULT_LABELS } from "@/components/FilterBar";
@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { EnrichedIssue, DifficultyLevel, GitHubIssue } from "@/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Sparkles, Search, Loader2, Frown, Settings2 } from "lucide-react";
+import { Sparkles, Search, Loader2, Frown, Settings2, Github } from "lucide-react";
 
 function sortIssues(issues: EnrichedIssue[], sortKey: string) {
   const sorted = [...issues];
@@ -75,7 +75,7 @@ async function enrichIssues(
 function ExploreContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
 
   const initialTab = searchParams.get("tab") || "search";
   const initialQuery = searchParams.get("q") || "";
@@ -264,9 +264,10 @@ function ExploreContent() {
 
   // Fetch issues on initial load and whenever search is triggered
   useEffect(() => {
+    if (status !== "authenticated") return;
     fetchIssues(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTrigger]);
+  }, [searchTrigger, status]);
 
   useEffect(() => {
     if (activeTab === "recommended" && session && recommendedIssues.length === 0) {
@@ -315,6 +316,50 @@ function ExploreContent() {
     return filtered;
   }, [recommendedIssues, recQuery, recLanguage, recDifficulty]);
 
+
+  if (status === "loading") {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="grid gap-4 md:grid-cols-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <IssueCardSkeleton key={i} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h1 className="mb-2 text-3xl font-bold">Explore Issues</h1>
+          <p className="text-muted-foreground">
+            Find beginner-friendly issues across thousands of open source projects.
+          </p>
+        </div>
+
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
+            <Github className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <h2 className="mb-2 text-xl font-semibold">Sign in to explore issues</h2>
+          <p className="mb-6 max-w-md text-sm text-muted-foreground">
+            Connect your GitHub account to search and discover beginner-friendly
+            open source issues with health scores and AI difficulty ratings.
+          </p>
+          <Button
+            onClick={() => signIn("github")}
+            size="lg"
+            className="gap-2"
+          >
+            <Github className="h-5 w-5" />
+            Sign in with GitHub
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
