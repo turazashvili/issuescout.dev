@@ -8,19 +8,10 @@ import { IssueCardSkeleton } from "@/components/IssueCardSkeleton";
 import { FilterBar, DEFAULT_LABELS } from "@/components/FilterBar";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { EnrichedIssue, DifficultyLevel } from "@/types";
+import type { EnrichedIssue, DifficultyLevel, GitHubIssue } from "@/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Sparkles, Search, Loader2, Frown, Settings2 } from "lucide-react";
-
-// TODO: Re-enable star/fork client-side filter when filters are restored
-// function applyStarForkFilter(issues: EnrichedIssue[], minStars: number, minForks: number) {
-//   return issues.filter((i) => {
-//     if (minStars > 0 && i.repository.stargazerCount < minStars) return false;
-//     if (minForks > 0 && i.repository.forkCount < minForks) return false;
-//     return true;
-//   });
-// }
 
 function sortIssues(issues: EnrichedIssue[], sortKey: string) {
   const sorted = [...issues];
@@ -35,10 +26,47 @@ function sortIssues(issues: EnrichedIssue[], sortKey: string) {
       sorted.sort((a, b) => b.comments.totalCount - a.comments.totalCount);
       break;
     case "health-score":
-      sorted.sort((a, b) => (b.matchScore || b.healthScore) - (a.matchScore || a.healthScore));
+      sorted.sort((a, b) => (b.matchScore || b.healthScore || 0) - (a.matchScore || a.healthScore || 0));
       break;
   }
   return sorted;
+}
+
+// Helper: call the enrich API and merge results into existing issues
+async function enrichIssues(
+  issues: GitHubIssue[]
+): Promise<Map<string, { healthScore: number; healthDetails: EnrichedIssue["healthDetails"]; difficulty: DifficultyLevel; difficultyReason: string; difficultyUsedAI: boolean }>> {
+  const payload = issues.map((issue) => ({
+    id: issue.id,
+    title: issue.title,
+    body: issue.body || "",
+    labels: issue.labels.map((l) => l.name),
+    repoFullName: issue.repository.nameWithOwner,
+    language: issue.repository.primaryLanguage?.name || "",
+  }));
+
+  const res = await fetch("/api/issues/enrich", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ issues: payload }),
+  });
+
+  const enrichmentMap = new Map<string, { healthScore: number; healthDetails: EnrichedIssue["healthDetails"]; difficulty: DifficultyLevel; difficultyReason: string; difficultyUsedAI: boolean }>();
+
+  if (res.ok) {
+    const data = await res.json();
+    for (const e of data.enrichments) {
+      enrichmentMap.set(e.issueId, {
+        healthScore: e.healthScore,
+        healthDetails: e.healthDetails,
+        difficulty: e.difficulty,
+        difficultyReason: e.difficultyReason,
+        difficultyUsedAI: e.difficultyUsedAI,
+      });
+    }
+  }
+
+  return enrichmentMap;
 }
 
 function ExploreContent() {
@@ -72,6 +100,7 @@ function ExploreContent() {
   });
   const [showClaimed, setShowClaimed] = useState(searchParams.get("showClaimed") === "true");
   const [rawIssues, setRawIssues] = useState<EnrichedIssue[]>([]);
+  const [enriching, setEnriching] = useState(false);
   const [loading, setLoading] = useState(false);
   const [totalCount, setTotalCount] = useState<number | undefined>();
   const [endCursor, setEndCursor] = useState<string | null>(null);
@@ -95,9 +124,11 @@ function ExploreContent() {
   const endCursorRef = useRef(endCursor);
   endCursorRef.current = endCursor;
 
-  // Sync filter state → URL search params
+  // Track the current enrich request so we can ignore stale ones
+  const enrichRequestId = useRef(0);
+
+  // Sync filter state -> URL search params
   // Only sync search-tab filters when on the search tab.
-  // Recommended tab filters are client-side only and don't need URL persistence.
   useEffect(() => {
     const params = new URLSearchParams();
     if (activeTab !== "search") {
@@ -128,35 +159,79 @@ function ExploreContent() {
         if (showClaimed) params.set("showClaimed", "true");
         if (append && endCursorRef.current) params.set("after", endCursorRef.current);
 
+        // Phase 1: Fast fetch — issues without enrichment
         const res = await fetch(`/api/issues?${params.toString()}`);
         const data = await res.json();
 
         if (res.ok) {
+          // Cast the raw issues as EnrichedIssue with missing enrichment fields
+          const basicIssues: EnrichedIssue[] = data.issues.map((issue: GitHubIssue & { isBookmarked?: boolean }) => ({
+            ...issue,
+            healthScore: undefined as unknown as number,
+            healthDetails: undefined as unknown as EnrichedIssue["healthDetails"],
+            difficulty: undefined as unknown as DifficultyLevel,
+            difficultyReason: "",
+            difficultyUsedAI: false,
+          }));
+
+          let newIssueList: EnrichedIssue[];
           if (append) {
-            setRawIssues((prev) => {
-              const existingIds = new Set(prev.map((i: EnrichedIssue) => i.id));
-              const newIssues = data.issues.filter((i: EnrichedIssue) => !existingIds.has(i.id));
-              return [...prev, ...newIssues];
-            });
+            const existingIds = new Set(rawIssues.map((i) => i.id));
+            const deduped = basicIssues.filter((i) => !existingIds.has(i.id));
+            newIssueList = [...rawIssues, ...deduped];
           } else {
-            setRawIssues(data.issues);
+            newIssueList = basicIssues;
           }
+
+          setRawIssues(newIssueList);
           setTotalCount(data.totalCount);
           setEndCursor(data.pagination?.endCursor || null);
           setHasMore(data.pagination?.hasNextPage || false);
+          setLoading(false);
+
+          // Phase 2: Enrich in background
+          const issuesToEnrich = append
+            ? basicIssues.filter((i) => !new Set(rawIssues.map((r) => r.id)).has(i.id))
+            : basicIssues;
+
+          if (issuesToEnrich.length > 0) {
+            const requestId = ++enrichRequestId.current;
+            setEnriching(true);
+
+            enrichIssues(issuesToEnrich).then((enrichmentMap) => {
+              // Ignore stale responses
+              if (requestId !== enrichRequestId.current) return;
+
+              setRawIssues((prev) =>
+                prev.map((issue) => {
+                  const enrichment = enrichmentMap.get(issue.id);
+                  if (enrichment) {
+                    return { ...issue, ...enrichment };
+                  }
+                  return issue;
+                })
+              );
+              setEnriching(false);
+            }).catch(() => {
+              if (requestId === enrichRequestId.current) {
+                setEnriching(false);
+              }
+            });
+          }
+        } else {
+          setLoading(false);
         }
       } catch (error) {
         console.error("Error fetching issues:", error);
-      } finally {
         setLoading(false);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [query, language, difficulty, sort, labels, showClaimed]
   );
 
   // GitHub handles global sort for newest/oldest/most-commented.
-  // most-stars, most-forks, and health-score must be sorted client-side
-  // because GitHub issue search doesn't support sorting by repo stars/forks.
+  // health-score must be sorted client-side.
   const CLIENT_SIDE_SORTS = ["health-score"];
   const issues = useMemo(() => {
     if (CLIENT_SIDE_SORTS.includes(sort)) {
@@ -201,6 +276,8 @@ function ExploreContent() {
     setTotalCount(undefined);
     setEndCursor(null);
     setHasMore(false);
+    enrichRequestId.current++; // Cancel any in-flight enrichment
+    setEnriching(false);
     setSearchTrigger((t) => t + 1);
   };
 
@@ -295,7 +372,7 @@ function ExploreContent() {
             <>
               <div className="grid gap-4 md:grid-cols-2">
                 {issues.map((issue) => (
-                  <IssueCard key={issue.id} issue={issue} />
+                  <IssueCard key={issue.id} issue={issue} enriching={enriching} />
                 ))}
               </div>
 
