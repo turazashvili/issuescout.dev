@@ -138,19 +138,21 @@ export default function HomePage() {
     router.push(`/explore?language=${encodeURIComponent(lang)}`);
   };
 
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "WebSite",
     name: "IssueScout",
-    url: "https://issuescout-delta.vercel.app",
+    url: siteUrl,
     description:
       "Discover beginner-friendly open source issues with community health scores, AI difficulty ratings, and personalized recommendations.",
     potentialAction: {
       "@type": "SearchAction",
       target: {
         "@type": "EntryPoint",
-        urlTemplate:
-          "https://issuescout-delta.vercel.app/explore?q={search_term_string}",
+        urlTemplate: `${siteUrl}/explore?q={search_term_string}`,
       },
       "query-input": "required name=search_term_string",
     },
