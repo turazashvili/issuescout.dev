@@ -79,6 +79,31 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return baseUrl;
     },
   },
+  events: {
+    async signOut(message) {
+      const token = "token" in message ? message.token : null;
+      if (token?.accessToken) {
+        try {
+          const credentials = Buffer.from(
+            `${process.env.GITHUB_ID}:${process.env.GITHUB_SECRET}`
+          ).toString("base64");
+          await fetch(
+            `https://api.github.com/applications/${process.env.GITHUB_ID}/token`,
+            {
+              method: "DELETE",
+              headers: {
+                Authorization: `Basic ${credentials}`,
+                Accept: "application/vnd.github+json",
+              },
+              body: JSON.stringify({ access_token: token.accessToken }),
+            }
+          );
+        } catch (e) {
+          console.error("Failed to revoke GitHub token:", e);
+        }
+      }
+    },
+  },
   pages: {
     signIn: "/",
   },
