@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  GitBranch,
   Loader2,
   Check,
   Plus,
@@ -20,6 +19,7 @@ import {
   Code2,
   Boxes,
 } from "lucide-react";
+import { IssueScoutIcon } from "@/components/IssueScoutLogo";
 
 const POPULAR_LANGUAGES = [
   "JavaScript",
@@ -535,7 +535,7 @@ export default function OnboardingPage() {
                 {saving ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <GitBranch className="h-4 w-4" />
+                  <IssueScoutIcon className="h-4 w-4" />
                 )}
                 Find My Issues
               </Button>
