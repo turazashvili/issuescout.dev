@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -15,10 +15,9 @@ import {
   Github,
   ArrowRight,
   Star,
-  Users,
   Code2,
   Heart,
-  CheckCircle2,
+  ExternalLink,
 } from "lucide-react";
 
 const FEATURED_LANGUAGES = [
@@ -65,9 +64,7 @@ export default function HomePage() {
   const [query, setQuery] = useState("");
   const [reposIndexed, setReposIndexed] = useState<number | null>(null);
   const [displayedCount, setDisplayedCount] = useState(0);
-  const [surveyVote, setSurveyVote] = useState<"yes" | "no" | null>(null);
-  const [surveyResults, setSurveyResults] = useState<{ yes: number; no: number } | null>(null);
-  const [surveyLoading, setSurveyLoading] = useState(false);
+  const [githubStars, setGithubStars] = useState<number | null>(null);
   const router = useRouter();
   const { data: session } = useSession();
   const animFrameRef = useRef<number | null>(null);
@@ -123,37 +120,13 @@ export default function HomePage() {
     };
   }, [reposIndexed]);
 
-  // Load survey state from localStorage
+  // Fetch GitHub star count
   useEffect(() => {
-    const saved = localStorage.getItem("survey-opensource-vote");
-    if (saved === "yes" || saved === "no") {
-      setSurveyVote(saved);
-      fetch("/api/survey")
-        .then((res) => res.json())
-        .then((data) => setSurveyResults(data))
-        .catch(() => {});
-    }
+    fetch("https://api.github.com/repos/turazashvili/issuescout.dev")
+      .then((res) => res.json())
+      .then((data) => setGithubStars(data.stargazers_count ?? 0))
+      .catch(() => setGithubStars(0));
   }, []);
-
-  const handleSurveyVote = async (vote: "yes" | "no") => {
-    if (surveyVote || surveyLoading) return;
-    setSurveyLoading(true);
-    try {
-      const res = await fetch("/api/survey", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vote }),
-      });
-      const data = await res.json();
-      setSurveyVote(vote);
-      setSurveyResults(data);
-      localStorage.setItem("survey-opensource-vote", vote);
-    } catch {
-      // silently fail
-    } finally {
-      setSurveyLoading(false);
-    }
-  };
 
   const handleSearch = () => {
     const params = new URLSearchParams();
@@ -167,61 +140,29 @@ export default function HomePage() {
 
   return (
     <div className="flex min-h-[calc(100vh-4rem)] flex-col">
-      {/* Survey Banner */}
+      {/* GitHub Star Banner */}
       <div className="border-b border-border/40 bg-muted/40">
-        <div className="container mx-auto px-4 py-3">
-          <div className="flex flex-col items-center justify-center gap-2 sm:flex-row sm:gap-4">
-            {!surveyVote ? (
-              <>
-                <span className="text-sm font-medium">
-                  Should we open source IssueScout?
+        <div className="container mx-auto px-4 py-2.5">
+          <div className="flex items-center justify-center gap-3">
+            <span className="text-sm text-muted-foreground">
+              IssueScout is open source
+            </span>
+            <a
+              href="https://github.com/turazashvili/issuescout.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/80 px-3 py-1 text-sm font-medium transition-colors hover:border-amber-500/50 hover:bg-amber-500/5"
+            >
+              <Github className="h-3.5 w-3.5" />
+              <Star className="h-3.5 w-3.5 text-amber-500" />
+              <span>Star</span>
+              {githubStars !== null && (
+                <span className="border-l border-border/60 pl-2 text-xs text-muted-foreground">
+                  {githubStars.toLocaleString()}
                 </span>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleSurveyVote("yes")}
-                    disabled={surveyLoading}
-                    className="h-7 gap-1.5 border-emerald-500/30 px-3 text-xs hover:border-emerald-500 hover:bg-emerald-500/10"
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                    Yes, open source it
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleSurveyVote("no")}
-                    disabled={surveyLoading}
-                    className="h-7 px-3 text-xs"
-                  >
-                    No, keep it closed
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
-                  Thanks for voting!
-                </span>
-                {surveyResults && (() => {
-                  const total = surveyResults.yes + surveyResults.no;
-                  const yesPct = total > 0 ? Math.round((surveyResults.yes / total) * 100) : 0;
-                  return (
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-2 w-32 overflow-hidden rounded-full bg-muted">
-                        <div
-                          className="h-full rounded-full bg-emerald-500 transition-all duration-500"
-                          style={{ width: `${yesPct}%` }}
-                        />
-                      </div>
-                      <span className="text-xs text-muted-foreground">
-                        {yesPct}% yes ({total} votes)
-                      </span>
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
+              )}
+              <ExternalLink className="h-3 w-3 text-muted-foreground" />
+            </a>
           </div>
         </div>
       </div>
