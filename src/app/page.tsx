@@ -55,15 +55,14 @@ const FEATURES = [
   },
 ];
 
-const STATS = [
+const STATIC_STATS = [
   { icon: Code2, label: "Languages", value: "50+" },
-  { icon: Star, label: "Repos Indexed", value: "10K+" },
-  { icon: Users, label: "Contributors Helped", value: "Growing" },
   { icon: Heart, label: "Open Source", value: "Always" },
 ];
 
 export default function HomePage() {
   const [query, setQuery] = useState("");
+  const [reposIndexed, setReposIndexed] = useState<number | null>(null);
   const router = useRouter();
   const { data: session } = useSession();
 
@@ -80,6 +79,14 @@ export default function HomePage() {
         .catch(() => {});
     }
   }, [session, router]);
+
+  // Fetch real stats
+  useEffect(() => {
+    fetch("/api/stats")
+      .then((res) => res.json())
+      .then((data) => setReposIndexed(data.reposIndexed || 0))
+      .catch(() => {});
+  }, []);
 
   const handleSearch = () => {
     const params = new URLSearchParams();
@@ -185,8 +192,8 @@ export default function HomePage() {
       {/* Stats strip */}
       <section className="border-y border-border/40 bg-muted/30">
         <div className="container mx-auto px-4 py-8">
-          <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
-            {STATS.map((stat) => (
+          <div className={`grid grid-cols-2 gap-6 ${reposIndexed && reposIndexed > 0 ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+            {STATIC_STATS.map((stat) => (
               <div key={stat.label} className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10">
                   <stat.icon className="h-5 w-5 text-emerald-500" />
@@ -197,6 +204,17 @@ export default function HomePage() {
                 </div>
               </div>
             ))}
+            {reposIndexed !== null && reposIndexed > 0 && (
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10">
+                  <Star className="h-5 w-5 text-emerald-500" />
+                </div>
+                <div>
+                  <p className="text-lg font-bold">{reposIndexed.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">Repos Indexed</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </section>

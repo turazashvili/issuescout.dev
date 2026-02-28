@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/mongodb";
-import { CachedIssue } from "@/models/CachedIssue";
+import { IndexedRepo } from "@/models/IndexedRepo";
 import { calculateHealthScore } from "@/services/healthScore";
 import { estimateDifficulty } from "@/services/difficulty";
 import { graphql } from "@octokit/graphql";
+
+const STALE_THRESHOLD_MS = 48 * 60 * 60 * 1000; // 48 hours
 
 const ISSUE_QUERY = `
   query GetIssue($owner: String!, $name: String!, $number: Int!) {
@@ -77,7 +79,6 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    // id format: "owner/repo/number"
     const parts = id.split("__");
     if (parts.length !== 3) {
       return NextResponse.json(
@@ -120,12 +121,43 @@ export async function GET(
       };
     };
 
-    // Calculate health score
-    const { score, details } = await calculateHealthScore(
-      owner,
-      name,
-      token
-    );
+    await connectToDatabase();
+
+    const fullName = `${owner}/${name}`;
+
+    // Check IndexedRepo for health score
+    let score: number;
+    let details;
+    const indexed = await IndexedRepo.findOne({ fullName });
+
+    if (indexed && (Date.now() - indexed.lastEnrichedAt.getTime() < STALE_THRESHOLD_MS)) {
+      // Fresh — use cached
+      score = indexed.healthScore;
+      details = indexed.healthDetails;
+    } else {
+      // Missing or stale — compute fresh
+      const healthResult = await calculateHealthScore(owner, name, token);
+      score = healthResult.score;
+      details = healthResult.details;
+
+      // Store/update in IndexedRepo
+      IndexedRepo.findOneAndUpdate(
+        { fullName },
+        {
+          fullName,
+          owner,
+          name,
+          healthScore: score,
+          healthDetails: details,
+          stargazerCount: result.repository.stargazerCount,
+          forkCount: result.repository.forkCount,
+          primaryLanguage: result.repository.primaryLanguage?.name || "",
+          description: result.repository.description || "",
+          lastEnrichedAt: new Date(),
+        },
+        { upsert: true }
+      ).catch(() => {});
+    }
 
     // Estimate difficulty
     const issue = result.repository.issue;
@@ -136,29 +168,6 @@ export async function GET(
         (l: { name: string }) => l.name
       )
     );
-
-    // Cache it
-    await connectToDatabase();
-    try {
-      await CachedIssue.findOneAndUpdate(
-        { issueId: issue.id },
-        {
-          issueId: issue.id,
-          data: issue,
-          healthScore: score,
-          healthDetails: details,
-          difficulty,
-          difficultyReason: reason,
-          repoOwner: owner,
-          repoName: name,
-          language: result.repository.primaryLanguage?.name || "",
-          cachedAt: new Date(),
-        },
-        { upsert: true }
-      );
-    } catch {
-      // non-critical
-    }
 
     return NextResponse.json({
       issue: {
