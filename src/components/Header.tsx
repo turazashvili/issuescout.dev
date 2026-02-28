@@ -99,7 +99,11 @@ export function Header() {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onClick={() => signOut()}
+                  onClick={() => {
+                    document.cookie = "__Host-authjs.csrf-token=; path=/; max-age=0; secure; samesite=lax";
+                    document.cookie = "__Secure-authjs.callback-url=; path=/; max-age=0; secure; samesite=lax";
+                    signOut();
+                  }}
                   className="gap-2 text-destructive"
                 >
                   <LogOut className="h-4 w-4" />
