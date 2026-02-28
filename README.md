@@ -126,6 +126,10 @@ Each repository gets a 0-100 health score based on 7 factors:
 
 A score of 70+ (green) means the repo actively welcomes contributors. Below 40 (red) means low activity.
 
+## Analytics & Privacy
+
+The hosted version at [issuescout-delta.vercel.app](https://issuescout-delta.vercel.app) uses Google Analytics (GA4) to understand usage patterns. Analytics are **only loaded after explicit cookie consent** — a banner asks users to accept or decline before any tracking scripts load. If you self-host, you can remove or replace the analytics component in `src/components/GoogleAnalytics.tsx`.
+
 ## Supported By
 
 IssueScout is supported by [Vexrail](https://vexrail.com?utm_source=github&utm_medium=readme&utm_campaign=issuescout).

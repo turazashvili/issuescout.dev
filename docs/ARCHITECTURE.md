@@ -17,6 +17,7 @@ Detailed technical documentation for IssueScout internals. Supported by [Vexrail
 - [Health Score Algorithm](#health-score-algorithm)
 - [Difficulty Estimation](#difficulty-estimation)
 - [Caching Strategy](#caching-strategy)
+- [Analytics](#analytics)
 - [Known Issues and Gotchas](#known-issues-and-gotchas)
 - [Deployment](#deployment)
 
@@ -355,6 +356,8 @@ Indexes: `primaryLanguage+healthScore`, `lastEnrichedAt`.
 | `DifficultyBadge` | difficulty, reason?, usedAI? | Color-coded badge. Purple sparkle if AI was used. |
 | `HealthScoreBadge` | score, details? | Score badge with breakdown tooltip. |
 | `ThemeToggle` | none | Dark/light mode toggle. Persists to localStorage. |
+| `GoogleAnalytics` | none | Conditionally loads GA4 gtag.js scripts. Only renders after cookie consent is accepted. Listens for `cookie-consent-update` custom event. |
+| `CookieConsent` | none | Fixed bottom banner asking user to accept/decline cookies. Persists choice to `localStorage` (`cookie-consent` key). Dispatches `cookie-consent-update` event on accept. |
 
 ### shadcn/ui Components (16)
 
@@ -507,6 +510,22 @@ The `usedAI` flag is displayed as a purple sparkle on `DifficultyBadge`.
 | `SurveyVote` | Permanent | Landing page votes | Community feedback |
 
 **MongoDB connection**: Singleton pattern with `global.mongooseCache` to prevent multiple connections during Next.js hot reloading.
+
+---
+
+## Analytics
+
+The hosted version uses Google Analytics 4 (GA4) with measurement ID `G-JQ01FTRWHV`. Analytics are **consent-gated**:
+
+1. On first visit, `CookieConsent` banner appears at the bottom of the page
+2. User clicks **Accept** or **Decline**
+3. Choice is stored in `localStorage` (`cookie-consent` key) — banner never shows again
+4. If accepted, `GoogleAnalytics` component loads the gtag.js scripts via Next.js `<Script strategy="afterInteractive">`
+5. If declined, no tracking scripts are ever loaded
+
+**Communication between components**: `CookieConsent` dispatches a `cookie-consent-update` custom DOM event. `GoogleAnalytics` listens for this event and conditionally renders the `<Script>` tags. Both components read from the same `localStorage` key on mount.
+
+**Self-hosting**: Remove or replace `GoogleAnalytics` and `CookieConsent` in `src/app/layout.tsx` if you don't want analytics.
 
 ---
 
