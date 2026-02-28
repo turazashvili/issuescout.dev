@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { HealthScoreBadge } from "./HealthScoreBadge";
 import { DifficultyBadge } from "./DifficultyBadge";
 import type { EnrichedIssue } from "@/types";
@@ -27,6 +28,7 @@ import {
 
 interface IssueCardProps {
   issue: EnrichedIssue & { isArchived?: boolean };
+  enriching?: boolean;
   onBookmarkToggle?: (issueId: string, isBookmarked: boolean) => void;
   onArchiveToggle?: (issueId: string, isArchived: boolean) => void;
   showArchiveButton?: boolean;
@@ -51,6 +53,7 @@ function timeAgo(dateString: string): string {
 
 export function IssueCard({
   issue,
+  enriching = false,
   onBookmarkToggle,
   onArchiveToggle,
   showArchiveButton = false,
@@ -122,6 +125,10 @@ export function IssueCard({
 
   const languageColor = issue.repository.primaryLanguage?.color || "#6b7280";
   const languageName = issue.repository.primaryLanguage?.name || "Unknown";
+
+  // Determine if enrichment data is present
+  const hasEnrichment = issue.healthScore !== undefined && issue.healthScore !== null
+    && issue.difficulty !== undefined && issue.difficulty !== null;
 
   return (
     <Card className="group relative overflow-hidden border-border/50 bg-card/50 p-5 transition-all duration-200 hover:border-border hover:shadow-lg hover:shadow-emerald-500/5">
@@ -208,17 +215,26 @@ export function IssueCard({
         )}
       </div>
 
-      {/* Health & Difficulty badges */}
+      {/* Health & Difficulty badges — show skeletons while enriching */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <HealthScoreBadge
-          score={issue.healthScore}
-          details={issue.healthDetails}
-        />
-        <DifficultyBadge
-          difficulty={issue.difficulty}
-          reason={issue.difficultyReason}
-          usedAI={issue.difficultyUsedAI}
-        />
+        {hasEnrichment && !enriching ? (
+          <>
+            <HealthScoreBadge
+              score={issue.healthScore}
+              details={issue.healthDetails}
+            />
+            <DifficultyBadge
+              difficulty={issue.difficulty}
+              reason={issue.difficultyReason}
+              usedAI={issue.difficultyUsedAI}
+            />
+          </>
+        ) : (
+          <>
+            <Skeleton className="h-6 w-24 rounded-full" />
+            <Skeleton className="h-6 w-20 rounded-full" />
+          </>
+        )}
       </div>
 
       {/* Footer: stats */}
