@@ -71,6 +71,7 @@ Create `.env.local` from `.env.example`:
 | `MONGODB_URI` | Yes | MongoDB Atlas connection string |
 | `OPENAI_API_KEY` | Optional | OpenAI API key for GPT-4o-mini. Without it, difficulty estimation uses rule-based only. |
 | `GITHUB_PAT` | Optional | GitHub PAT for unauthenticated fallback |
+| `NEXT_PUBLIC_GA_MEASUREMENT_ID` | Optional | Google Analytics 4 Measurement ID (e.g., `G-XXXXXXXXXX`). If unset, no analytics are loaded. |
 
 **GitHub OAuth App**: Create at [github.com/settings/applications/new](https://github.com/settings/applications/new) with callback URL `http://localhost:3000/api/auth/callback/github`.
 

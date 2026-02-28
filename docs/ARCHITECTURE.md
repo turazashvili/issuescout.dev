@@ -515,7 +515,7 @@ The `usedAI` flag is displayed as a purple sparkle on `DifficultyBadge`.
 
 ## Analytics
 
-The hosted version uses Google Analytics 4 (GA4) with measurement ID `G-JQ01FTRWHV`. Analytics are **consent-gated**:
+The hosted version uses Google Analytics 4 (GA4). The measurement ID is configured via the `NEXT_PUBLIC_GA_MEASUREMENT_ID` environment variable. If the variable is unset, no analytics scripts are loaded. Analytics are **consent-gated**:
 
 1. On first visit, `CookieConsent` banner appears at the bottom of the page
 2. User clicks **Accept** or **Decline**
@@ -525,7 +525,7 @@ The hosted version uses Google Analytics 4 (GA4) with measurement ID `G-JQ01FTRW
 
 **Communication between components**: `CookieConsent` dispatches a `cookie-consent-update` custom DOM event. `GoogleAnalytics` listens for this event and conditionally renders the `<Script>` tags. Both components read from the same `localStorage` key on mount.
 
-**Self-hosting**: Remove or replace `GoogleAnalytics` and `CookieConsent` in `src/app/layout.tsx` if you don't want analytics.
+**Self-hosting**: Leave `NEXT_PUBLIC_GA_MEASUREMENT_ID` unset for no analytics, or set your own GA4 measurement ID. You can also remove `GoogleAnalytics` and `CookieConsent` from `src/app/layout.tsx` entirely.
 
 ---
 
