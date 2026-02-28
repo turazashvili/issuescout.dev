@@ -9,6 +9,8 @@ import { FilterBar, DEFAULT_LABELS } from "@/components/FilterBar";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { EnrichedIssue, DifficultyLevel } from "@/types";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Sparkles, Search, Loader2, Frown, Settings2 } from "lucide-react";
 
 // TODO: Re-enable star/fork client-side filter when filters are restored
@@ -82,13 +84,10 @@ function ExploreContent() {
   const [userLanguages, setUserLanguages] = useState<string[]>([]);
   const [userTopics, setUserTopics] = useState<string[]>([]);
 
-  // Recommended tab filters (client-side)
+  // Recommended tab filters (lightweight client-side only)
   const [recQuery, setRecQuery] = useState("");
   const [recLanguage, setRecLanguage] = useState("");
   const [recDifficulty, setRecDifficulty] = useState<DifficultyLevel | "all">("all");
-  const [recSort, setRecSort] = useState("health-score");
-  const [recLabels, setRecLabels] = useState<string[]>([...DEFAULT_LABELS]);
-  const [recShowClaimed, setRecShowClaimed] = useState(false);
   const [recVisibleCount, setRecVisibleCount] = useState(20);
 
   // Use a ref to always get latest endCursor for "Load More" without
@@ -205,7 +204,7 @@ function ExploreContent() {
     setSearchTrigger((t) => t + 1);
   };
 
-  // Client-side filtering and sorting for recommendations
+  // Client-side filtering for recommendations (sorted by match score from API)
   const filteredRecommendations = useMemo(() => {
     let filtered = [...recommendedIssues];
 
@@ -233,19 +232,9 @@ function ExploreContent() {
       filtered = filtered.filter((i) => i.difficulty === recDifficulty);
     }
 
-    // TODO: Re-enable star/fork client-side filter for recommendations when filters are restored
-    // filtered = applyStarForkFilter(filtered, recMinStars, recMinForks);
-
-    // Sort
-    filtered = sortIssues(filtered, recSort);
-
     return filtered;
-  }, [recommendedIssues, recQuery, recLanguage, recDifficulty, recSort]);
+  }, [recommendedIssues, recQuery, recLanguage, recDifficulty]);
 
-  // Reset visible count when rec filters change (filtering is client-side/instant)
-  const handleRecSearch = () => {
-    setRecVisibleCount(20);
-  };
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -364,24 +353,42 @@ function ExploreContent() {
               </div>
             )}
 
-            {/* Filters for recommendations */}
+            {/* Lightweight filters for recommendations */}
             {recommendedIssues.length > 0 && (
-              <FilterBar
-                query={recQuery}
-                language={recLanguage}
-                difficulty={recDifficulty}
-                sort={recSort}
-                labels={recLabels}
-                showClaimed={recShowClaimed}
-                onQueryChange={setRecQuery}
-                onLanguageChange={setRecLanguage}
-                onDifficultyChange={setRecDifficulty}
-                onSortChange={setRecSort}
-                onLabelsChange={setRecLabels}
-                onShowClaimedChange={setRecShowClaimed}
-                onSearch={handleRecSearch}
-                totalCount={filteredRecommendations.length}
-              />
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative flex-1 min-w-[200px] max-w-sm">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Filter recommendations..."
+                    value={recQuery}
+                    onChange={(e) => {
+                      setRecQuery(e.target.value);
+                      setRecVisibleCount(20);
+                    }}
+                    className="pl-9"
+                  />
+                </div>
+                <Select
+                  value={recDifficulty}
+                  onValueChange={(v) => {
+                    setRecDifficulty(v as DifficultyLevel | "all");
+                    setRecVisibleCount(20);
+                  }}
+                >
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="Difficulty" />
+                  </SelectTrigger>
+                  <SelectContent position="popper">
+                    <SelectItem value="all">All Levels</SelectItem>
+                    <SelectItem value="easy">Easy</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="hard">Hard</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span className="text-sm text-muted-foreground">
+                  {filteredRecommendations.length} issue{filteredRecommendations.length !== 1 ? "s" : ""}
+                </span>
+              </div>
             )}
 
             {recLoading ? (
