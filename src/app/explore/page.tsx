@@ -5,19 +5,20 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { IssueCard } from "@/components/IssueCard";
 import { IssueCardSkeleton } from "@/components/IssueCardSkeleton";
-import { FilterBar } from "@/components/FilterBar";
+import { FilterBar, DEFAULT_LABELS } from "@/components/FilterBar";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { EnrichedIssue, DifficultyLevel } from "@/types";
 import { Sparkles, Search, Loader2, Frown, Settings2 } from "lucide-react";
 
-function applyStarForkFilter(issues: EnrichedIssue[], minStars: number, minForks: number) {
-  return issues.filter((i) => {
-    if (minStars > 0 && i.repository.stargazerCount < minStars) return false;
-    if (minForks > 0 && i.repository.forkCount < minForks) return false;
-    return true;
-  });
-}
+// TODO: Re-enable star/fork client-side filter when filters are restored
+// function applyStarForkFilter(issues: EnrichedIssue[], minStars: number, minForks: number) {
+//   return issues.filter((i) => {
+//     if (minStars > 0 && i.repository.stargazerCount < minStars) return false;
+//     if (minForks > 0 && i.repository.forkCount < minForks) return false;
+//     return true;
+//   });
+// }
 
 function sortIssues(issues: EnrichedIssue[], sortKey: string) {
   const sorted = [...issues];
@@ -51,13 +52,23 @@ function ExploreContent() {
 
   // Search tab state
   const [query, setQuery] = useState(initialQuery);
+  const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(query), 300);
+    return () => clearTimeout(timer);
+  }, [query]);
+
   const [language, setLanguage] = useState(initialLanguage);
   const [difficulty, setDifficulty] = useState<DifficultyLevel | "all">(
     (searchParams.get("difficulty") as DifficultyLevel) || "all"
   );
   const [sort, setSort] = useState(searchParams.get("sort") || "newest");
-  const [minStars, setMinStars] = useState(parseInt(searchParams.get("minStars") || "0"));
-  const [minForks, setMinForks] = useState(parseInt(searchParams.get("minForks") || "0"));
+  const [labels, setLabels] = useState<string[]>(() => {
+    const urlLabels = searchParams.get("labels");
+    return urlLabels ? urlLabels.split(",") : [...DEFAULT_LABELS];
+  });
+  const [showClaimed, setShowClaimed] = useState(searchParams.get("showClaimed") === "true");
   const [rawIssues, setRawIssues] = useState<EnrichedIssue[]>([]);
   const [loading, setLoading] = useState(false);
   const [totalCount, setTotalCount] = useState<number | undefined>();
@@ -76,8 +87,9 @@ function ExploreContent() {
   const [recLanguage, setRecLanguage] = useState("");
   const [recDifficulty, setRecDifficulty] = useState<DifficultyLevel | "all">("all");
   const [recSort, setRecSort] = useState("health-score");
-  const [recMinStars, setRecMinStars] = useState(0);
-  const [recMinForks, setRecMinForks] = useState(0);
+  const [recLabels, setRecLabels] = useState<string[]>([...DEFAULT_LABELS]);
+  const [recShowClaimed, setRecShowClaimed] = useState(false);
+  const [recVisibleCount, setRecVisibleCount] = useState(20);
 
   // Use a ref to always get latest endCursor for "Load More" without
   // recreating the fetch function and causing extra renders
@@ -85,18 +97,24 @@ function ExploreContent() {
   endCursorRef.current = endCursor;
 
   // Sync filter state → URL search params
+  // Only sync search-tab filters when on the search tab.
+  // Recommended tab filters are client-side only and don't need URL persistence.
   useEffect(() => {
     const params = new URLSearchParams();
-    if (query) params.set("q", query);
-    if (language) params.set("language", language);
-    if (difficulty !== "all") params.set("difficulty", difficulty);
-    if (sort !== "newest") params.set("sort", sort);
-    if (minStars > 0) params.set("minStars", String(minStars));
-    if (minForks > 0) params.set("minForks", String(minForks));
-    if (activeTab !== "search") params.set("tab", activeTab);
+    if (activeTab !== "search") {
+      params.set("tab", activeTab);
+    } else {
+      if (debouncedQuery) params.set("q", debouncedQuery);
+      if (language) params.set("language", language);
+      if (difficulty !== "all") params.set("difficulty", difficulty);
+      if (sort !== "newest") params.set("sort", sort);
+      const labelsChanged = JSON.stringify([...labels].sort()) !== JSON.stringify([...DEFAULT_LABELS].sort());
+      if (labelsChanged) params.set("labels", labels.join(","));
+      if (showClaimed) params.set("showClaimed", "true");
+    }
     const qs = params.toString();
     router.replace(`/explore${qs ? `?${qs}` : ""}`, { scroll: false });
-  }, [query, language, difficulty, sort, minStars, minForks, activeTab, router]);
+  }, [debouncedQuery, language, difficulty, sort, labels, showClaimed, activeTab, router]);
 
   const fetchIssues = useCallback(
     async (append = false) => {
@@ -107,8 +125,8 @@ function ExploreContent() {
         if (language) params.set("language", language);
         if (difficulty !== "all") params.set("difficulty", difficulty);
         params.set("sort", sort);
-        if (minStars > 0) params.set("minStars", String(minStars));
-        if (minForks > 0) params.set("minForks", String(minForks));
+        if (labels.length > 0) params.set("labels", labels.join(","));
+        if (showClaimed) params.set("showClaimed", "true");
         if (append && endCursorRef.current) params.set("after", endCursorRef.current);
 
         const res = await fetch(`/api/issues?${params.toString()}`);
@@ -134,7 +152,7 @@ function ExploreContent() {
         setLoading(false);
       }
     },
-    [query, language, difficulty, sort, minStars, minForks]
+    [query, language, difficulty, sort, labels, showClaimed]
   );
 
   // GitHub handles global sort for newest/oldest/most-commented.
@@ -215,17 +233,19 @@ function ExploreContent() {
       filtered = filtered.filter((i) => i.difficulty === recDifficulty);
     }
 
-    // Filter by stars/forks
-    filtered = applyStarForkFilter(filtered, recMinStars, recMinForks);
+    // TODO: Re-enable star/fork client-side filter for recommendations when filters are restored
+    // filtered = applyStarForkFilter(filtered, recMinStars, recMinForks);
 
     // Sort
     filtered = sortIssues(filtered, recSort);
 
     return filtered;
-  }, [recommendedIssues, recQuery, recLanguage, recDifficulty, recSort, recMinStars, recMinForks]);
+  }, [recommendedIssues, recQuery, recLanguage, recDifficulty, recSort]);
 
-  // No-op for recommended search (filtering is client-side/instant)
-  const handleRecSearch = () => {};
+  // Reset visible count when rec filters change (filtering is client-side/instant)
+  const handleRecSearch = () => {
+    setRecVisibleCount(20);
+  };
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -256,14 +276,14 @@ function ExploreContent() {
             language={language}
             difficulty={difficulty}
             sort={sort}
-            minStars={minStars}
-            minForks={minForks}
+            labels={labels}
+            showClaimed={showClaimed}
             onQueryChange={setQuery}
             onLanguageChange={setLanguage}
             onDifficultyChange={setDifficulty}
             onSortChange={setSort}
-            onMinStarsChange={setMinStars}
-            onMinForksChange={setMinForks}
+            onLabelsChange={setLabels}
+            onShowClaimedChange={setShowClaimed}
             onSearch={handleSearch}
             totalCount={totalCount}
           />
@@ -279,9 +299,7 @@ function ExploreContent() {
               <Frown className="mb-4 h-12 w-12 text-muted-foreground/50" />
               <h3 className="mb-2 text-lg font-semibold">No issues found</h3>
               <p className="text-sm text-muted-foreground">
-                {minStars > 0 || minForks > 0
-                  ? "Try lowering the stars or forks minimum."
-                  : "Try adjusting your filters or search terms."}
+                Try adjusting your filters or search terms.
               </p>
             </div>
           ) : (
@@ -353,14 +371,14 @@ function ExploreContent() {
                 language={recLanguage}
                 difficulty={recDifficulty}
                 sort={recSort}
-                minStars={recMinStars}
-                minForks={recMinForks}
+                labels={recLabels}
+                showClaimed={recShowClaimed}
                 onQueryChange={setRecQuery}
                 onLanguageChange={setRecLanguage}
                 onDifficultyChange={setRecDifficulty}
                 onSortChange={setRecSort}
-                onMinStarsChange={setRecMinStars}
-                onMinForksChange={setRecMinForks}
+                onLabelsChange={setRecLabels}
+                onShowClaimedChange={setRecShowClaimed}
                 onSearch={handleRecSearch}
                 totalCount={filteredRecommendations.length}
               />
@@ -392,11 +410,25 @@ function ExploreContent() {
                 </p>
               </div>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                {filteredRecommendations.map((issue) => (
-                  <IssueCard key={issue.id} issue={issue} />
-                ))}
-              </div>
+              <>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {filteredRecommendations.slice(0, recVisibleCount).map((issue) => (
+                    <IssueCard key={issue.id} issue={issue} />
+                  ))}
+                </div>
+
+                {recVisibleCount < filteredRecommendations.length && (
+                  <div className="flex justify-center pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setRecVisibleCount((c) => c + 20)}
+                      className="gap-2"
+                    >
+                      Load More ({filteredRecommendations.length - recVisibleCount} remaining)
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </TabsContent>
         )}

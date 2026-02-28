@@ -15,6 +15,9 @@ export interface GitHubIssue {
   comments: {
     totalCount: number;
   };
+  reactions: {
+    totalCount: number;
+  };
   repository: {
     nameWithOwner: string;
     name: string;

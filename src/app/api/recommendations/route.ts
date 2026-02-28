@@ -53,7 +53,7 @@ export async function GET() {
       const { issues } = await searchIssues(
         "",
         lang,
-        10,
+        30,
         null,
         session.accessToken
       );
@@ -72,11 +72,20 @@ export async function GET() {
             issue.labels.map((l) => l.name)
           );
 
-          // Calculate match score
+          // Calculate match score (0-100)
+          // Base: language rank contributes up to 50 points
           const langIndex = searchLanguages.indexOf(lang);
-          let matchScore = Math.round(100 - langIndex * 15 + score * 0.3);
+          const langScore = langIndex === 0 ? 50 : langIndex === 1 ? 35 : 20;
 
-          // Boost score if repo description/topics match user's frameworks
+          // Health score contributes up to 30 points
+          const healthContribution = Math.round(score * 0.3);
+
+          // Difficulty: easy issues are better matches for discovery
+          const difficultyBonus = difficulty === "easy" ? 10 : difficulty === "medium" ? 5 : 0;
+
+          let matchScore = langScore + healthContribution + difficultyBonus;
+
+          // Boost score if repo description/topics match user's frameworks (+10)
           if (allTopics.length > 0 && issue.repository.description) {
             const desc = issue.repository.description.toLowerCase();
             const frameworkMatch = allTopics.some((fw) =>
@@ -112,7 +121,7 @@ export async function GET() {
     });
 
     return NextResponse.json({
-      issues: unique.slice(0, 15),
+      issues: unique.slice(0, 60),
       userLanguages: topLanguages,
       userTopics: allTopics,
     });

@@ -9,9 +9,15 @@ import { HealthScoreBadge } from "./HealthScoreBadge";
 import { DifficultyBadge } from "./DifficultyBadge";
 import type { EnrichedIssue } from "@/types";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Star,
   GitFork,
   MessageSquare,
+  ThumbsUp,
   Bookmark,
   ExternalLink,
   Clock,
@@ -218,22 +224,51 @@ export function IssueCard({
       {/* Footer: stats */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <Star className="h-3.5 w-3.5" />
-            {issue.repository.stargazerCount.toLocaleString()}
-          </span>
-          <span className="flex items-center gap-1">
-            <GitFork className="h-3.5 w-3.5" />
-            {issue.repository.forkCount.toLocaleString()}
-          </span>
-          <span className="flex items-center gap-1">
-            <MessageSquare className="h-3.5 w-3.5" />
-            {issue.comments.totalCount}
-          </span>
-          <span className="flex items-center gap-1">
-            <Clock className="h-3.5 w-3.5" />
-            {timeAgo(issue.createdAt)}
-          </span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="flex items-center gap-1">
+                <Star className="h-3.5 w-3.5" />
+                {issue.repository.stargazerCount.toLocaleString()}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>Repository stars</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="flex items-center gap-1">
+                <GitFork className="h-3.5 w-3.5" />
+                {issue.repository.forkCount.toLocaleString()}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>Repository forks</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="flex items-center gap-1">
+                <MessageSquare className="h-3.5 w-3.5" />
+                {issue.comments.totalCount}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>Issue comments</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="flex items-center gap-1">
+                <ThumbsUp className="h-3.5 w-3.5" />
+                {issue.reactions?.totalCount || 0}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>Issue reactions</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="flex items-center gap-1">
+                <Clock className="h-3.5 w-3.5" />
+                {timeAgo(issue.createdAt)}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{new Date(issue.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</TooltipContent>
+          </Tooltip>
         </div>
 
         {session && (

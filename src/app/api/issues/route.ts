@@ -20,26 +20,30 @@ export async function GET(request: NextRequest) {
     const sort = searchParams.get("sort") || "newest";
     const after = searchParams.get("after") || null;
     const desiredCount = Math.min(
-      parseInt(searchParams.get("limit") || "20"),
-      30
+      parseInt(searchParams.get("limit") || "60"),
+      100
     );
-    const minStars = parseInt(searchParams.get("minStars") || "0");
-    const minForks = parseInt(searchParams.get("minForks") || "0");
-    const hasStarForkFilter = minStars > 0 || minForks > 0;
+    const labels = searchParams.get("labels")?.split(",").filter(Boolean) || [];
+    const showClaimed = searchParams.get("showClaimed") === "true";
 
     // Get user session for their token
     const session = await auth();
     const userToken = session?.accessToken;
 
-    // When star/fork filters are active, we need to over-fetch from GitHub
-    // because we filter post-fetch (GitHub issue search doesn't support stars:/forks:).
-    // We fetch in batches until we have enough matching results or run out of pages.
-    let allMatchingIssues: GitHubIssue[] = [];
+    const hasDifficultyFilter = difficulty !== "all";
+    // "easy" has a good comment-count proxy (comments:0..5) so hit rate is high.
+    // "medium" and "hard" have no proxy — we need to over-fetch more aggressively.
+    const hasGoodProxy = difficulty === "easy";
+
+    // When difficulty filter is active, we over-fetch from GitHub and filter post-enrichment,
+    // because difficulty is computed by our AI/rule-based estimator (GitHub doesn't know about it).
+    const maxRounds = !hasDifficultyFilter ? 1 : hasGoodProxy ? 3 : 5;
+    const fetchSize = hasDifficultyFilter ? Math.max(60, desiredCount) : desiredCount;
+
+    let allFetchedIssues: GitHubIssue[] = [];
     let currentCursor = after;
     let lastPageInfo = { hasNextPage: false, endCursor: null as string | null };
     let githubTotalCount = 0;
-    const maxRounds = hasStarForkFilter ? 5 : 1; // Up to 5 rounds of fetching when filtering
-    const fetchSize = hasStarForkFilter ? 30 : desiredCount; // Fetch more per round when filtering
 
     for (let round = 0; round < maxRounds; round++) {
       const { issues: batch, totalCount: tc, pageInfo } = await searchIssues(
@@ -48,31 +52,29 @@ export async function GET(request: NextRequest) {
         fetchSize,
         currentCursor,
         userToken,
-        { sort }
+        {
+          sort,
+          labels,
+          difficulty,
+          showAssigned: showClaimed,
+          showLinkedPR: showClaimed,
+        }
       );
 
       githubTotalCount = tc;
       lastPageInfo = pageInfo;
+      allFetchedIssues.push(...batch);
 
-      if (hasStarForkFilter) {
-        // Pre-filter by stars/forks BEFORE expensive enrichment
-        const matching = batch.filter((issue) => {
-          if (minStars > 0 && issue.repository.stargazerCount < minStars) return false;
-          if (minForks > 0 && issue.repository.forkCount < minForks) return false;
-          return true;
-        });
-        allMatchingIssues.push(...matching);
-      } else {
-        allMatchingIssues = batch;
-      }
-
-      // Stop if we have enough results or no more pages
-      if (allMatchingIssues.length >= desiredCount || !pageInfo.hasNextPage) break;
+      // Stop if we have enough candidates or no more pages
+      if (allFetchedIssues.length >= desiredCount * 3 || !pageInfo.hasNextPage) break;
       currentCursor = pageInfo.endCursor;
     }
 
-    // Trim to desired count
-    const issuesToEnrich = allMatchingIssues.slice(0, desiredCount);
+    // Enrich more candidates when difficulty filtering to ensure enough survive post-filter.
+    // easy (with proxy): ~80% hit rate, 3x is plenty
+    // medium/hard (no proxy): ~20-40% hit rate, need 5x candidates
+    const enrichLimit = !hasDifficultyFilter ? desiredCount : hasGoodProxy ? desiredCount * 3 : desiredCount * 5;
+    const issuesToEnrich = allFetchedIssues.slice(0, enrichLimit);
 
     // Connect to MongoDB for caching
     await connectToDatabase();
@@ -179,8 +181,11 @@ export async function GET(request: NextRequest) {
       filtered = enrichedIssues.filter((i) => i.difficulty === difficulty);
     }
 
+    // Trim to desired page size
+    const pagedResults = filtered.slice(0, desiredCount);
+
     return NextResponse.json({
-      issues: filtered,
+      issues: pagedResults,
       totalCount: githubTotalCount,
       pagination: {
         hasNextPage: lastPageInfo.hasNextPage,
