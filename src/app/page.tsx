@@ -63,7 +63,7 @@ const STATIC_STATS = [
 
 export default function HomePage() {
   const [query, setQuery] = useState("");
-  const [reposIndexed, setReposIndexed] = useState<number | null>(null);
+  const [reposIndexed, setReposIndexed] = useState(0);
   const [surveyVote, setSurveyVote] = useState<"yes" | "no" | null>(null);
   const [surveyResults, setSurveyResults] = useState<{ yes: number; no: number } | null>(null);
   const [surveyLoading, setSurveyLoading] = useState(false);
@@ -287,7 +287,7 @@ export default function HomePage() {
       {/* Stats strip */}
       <section className="border-y border-border/40 bg-muted/30">
         <div className="container mx-auto px-4 py-8">
-          <div className={`grid grid-cols-2 gap-6 ${reposIndexed && reposIndexed > 0 ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+          <div className="grid grid-cols-3 gap-6">
             {STATIC_STATS.map((stat) => (
               <div key={stat.label} className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10">
@@ -299,17 +299,15 @@ export default function HomePage() {
                 </div>
               </div>
             ))}
-            {reposIndexed !== null && reposIndexed > 0 && (
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10">
-                  <Star className="h-5 w-5 text-emerald-500" />
-                </div>
-                <div>
-                  <p className="text-lg font-bold">{reposIndexed.toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground">Repos Indexed</p>
-                </div>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10">
+                <Star className="h-5 w-5 text-emerald-500" />
               </div>
-            )}
+              <div>
+                <p className="text-lg font-bold">{reposIndexed.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">Repos Indexed</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
