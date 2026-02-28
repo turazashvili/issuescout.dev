@@ -227,6 +227,7 @@ export default function OnboardingPage() {
 
   return (
     <div className="container mx-auto flex min-h-[calc(100vh-4rem)] max-w-2xl flex-col items-center justify-center px-4 py-12">
+      <h1 className="sr-only">Set Up Your IssueScout Profile</h1>
       {/* Progress indicator */}
       <div className="mb-8 flex items-center gap-2">
         {[1, 2].map((s) => (

@@ -1,6 +1,6 @@
 # Architecture
 
-Detailed technical documentation for IssueScout internals.
+Detailed technical documentation for IssueScout internals. Supported by [Vexrail](https://vexrail.com?utm_source=github&utm_medium=architecture_docs&utm_campaign=issuescout).
 
 ## Table of Contents
 

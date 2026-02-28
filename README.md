@@ -126,6 +126,10 @@ Each repository gets a 0-100 health score based on 7 factors:
 
 A score of 70+ (green) means the repo actively welcomes contributors. Below 40 (red) means low activity.
 
+## Supported By
+
+IssueScout is supported by [Vexrail](https://vexrail.com?utm_source=github&utm_medium=readme&utm_campaign=issuescout).
+
 ## Contributing
 
 Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions and guidelines.
