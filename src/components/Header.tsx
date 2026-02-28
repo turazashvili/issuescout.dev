@@ -19,6 +19,7 @@ import {
   Sparkles,
   Search,
   Github,
+  Settings,
 } from "lucide-react";
 
 export function Header() {
@@ -88,6 +89,12 @@ export function Header() {
                   <Link href="/bookmarks" className="gap-2">
                     <Bookmark className="h-4 w-4" />
                     Saved Issues
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/settings" className="gap-2">
+                    <Settings className="h-4 w-4" />
+                    Preferences
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />

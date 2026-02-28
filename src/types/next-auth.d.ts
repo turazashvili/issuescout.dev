@@ -11,6 +11,7 @@ declare module "next-auth" {
       githubId?: string;
       login?: string;
       avatarUrl?: string;
+      onboardingCompleted?: boolean;
     };
   }
 }
@@ -21,5 +22,6 @@ declare module "next-auth/jwt" {
     githubId?: string;
     login?: string;
     avatarUrl?: string;
+    onboardingCompleted?: boolean;
   }
 }

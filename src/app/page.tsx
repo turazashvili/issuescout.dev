@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -66,6 +66,20 @@ export default function HomePage() {
   const [query, setQuery] = useState("");
   const router = useRouter();
   const { data: session } = useSession();
+
+  // Redirect to onboarding if user is signed in but hasn't completed it
+  useEffect(() => {
+    if (session?.user?.githubId) {
+      fetch("/api/user/preferences")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.onboardingCompleted === false) {
+            router.push("/onboarding");
+          }
+        })
+        .catch(() => {});
+    }
+  }, [session, router]);
 
   const handleSearch = () => {
     const params = new URLSearchParams();

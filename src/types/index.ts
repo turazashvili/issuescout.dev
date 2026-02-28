@@ -15,6 +15,9 @@ export interface GitHubIssue {
   comments: {
     totalCount: number;
   };
+  reactions: {
+    totalCount: number;
+  };
   repository: {
     nameWithOwner: string;
     name: string;
@@ -51,6 +54,7 @@ export interface EnrichedIssue extends GitHubIssue {
   healthDetails: HealthDetails;
   difficulty: DifficultyLevel;
   difficultyReason: string;
+  difficultyUsedAI?: boolean;
   matchScore?: number;
   isBookmarked?: boolean;
 }
@@ -82,7 +86,6 @@ export interface UserProfile {
   avatarUrl: string;
   email: string;
   languages: string[];
-  bookmarkedIssues: string[];
   createdAt: Date;
   updatedAt: Date;
 }

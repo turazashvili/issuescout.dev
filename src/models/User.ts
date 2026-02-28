@@ -7,7 +7,11 @@ export interface IUser extends Document {
   avatarUrl: string;
   email: string;
   languages: string[];
-  bookmarkedIssues: string[];
+  frameworks: string[];
+  topics: string[];
+  preferredLanguages: string[];
+  preferredFrameworks: string[];
+  onboardingCompleted: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -19,8 +23,14 @@ const UserSchema = new Schema<IUser>(
     name: { type: String, default: "" },
     avatarUrl: { type: String, default: "" },
     email: { type: String, default: "" },
+    // Auto-detected from GitHub profile
     languages: [{ type: String }],
-    bookmarkedIssues: [{ type: String }],
+    frameworks: [{ type: String }],
+    topics: [{ type: String }],
+    // User-curated preferences (from onboarding + manual edits)
+    preferredLanguages: [{ type: String }],
+    preferredFrameworks: [{ type: String }],
+    onboardingCompleted: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

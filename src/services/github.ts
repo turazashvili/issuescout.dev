@@ -32,6 +32,9 @@ const SEARCH_ISSUES_QUERY = `
           comments {
             totalCount
           }
+          reactions {
+            totalCount
+          }
           repository {
             nameWithOwner
             name
@@ -158,12 +161,22 @@ function getToken(userToken?: string): string {
   return userToken || process.env.GITHUB_PAT || "";
 }
 
+// Default labels applied when user hasn't customized their selection
+const DEFAULT_LABELS = ["good first issue", "good-first-issue"];
+
 export async function searchIssues(
   query: string,
   language: string = "",
   first: number = 20,
   after: string | null = null,
-  userToken?: string
+  userToken?: string,
+  options?: {
+    sort?: string;
+    labels?: string[];         // User-selected labels (OR logic)
+    difficulty?: string;       // For comment-count proxy (easy/medium/hard/all)
+    showAssigned?: boolean;    // If true, removes no:assignee qualifier
+    showLinkedPR?: boolean;    // If true, removes -linked:pr qualifier
+  }
 ): Promise<{
   issues: GitHubIssue[];
   totalCount: number;
@@ -175,14 +188,72 @@ export async function searchIssues(
   const gql = createGraphQLClient(token);
 
   // Build search query
-  let searchQuery = `label:"good first issue","good-first-issue","beginner","beginner-friendly","help wanted","first-timers-only","easy" state:open`;
 
+  // 1. Base qualifiers — always applied for quality results
+  let searchQuery = `state:open is:issue is:public archived:false`;
+
+  // 2. Availability filters — on by default, toggleable by user
+  if (!options?.showAssigned) {
+    searchQuery += ` no:assignee`;
+  }
+  if (!options?.showLinkedPR) {
+    searchQuery += ` -linked:pr`;
+  }
+
+  // 3. Labels — user-selectable, defaults to good-first-issue variants
+  // undefined/null = use defaults (e.g. landing page navigation with no label param)
+  // empty array = user explicitly deselected all labels, skip label qualifier entirely
+  const labels = options?.labels !== undefined ? options.labels : DEFAULT_LABELS;
+  if (labels.length > 0) {
+    const labelQuery = labels.map((l) => `"${l}"`).join(",");
+    searchQuery += ` label:${labelQuery}`;
+  }
+
+  // 4. User text query
   if (query) {
     searchQuery = `${query} ${searchQuery}`;
   }
 
+  // 5. Language filter
   if (language) {
     searchQuery += ` language:${language}`;
+  }
+
+  // 6. Difficulty proxy via comment count
+  // Low-comment issues correlate with simpler/newer issues (easy),
+  // high-comment issues correlate with more complex/discussed issues (hard).
+  // This pre-biases GitHub results so post-fetch AI difficulty has a higher hit rate.
+  // Note: this is a heuristic proxy — actual difficulty is determined post-fetch by our estimator.
+  if (options?.difficulty && options.difficulty !== "all") {
+    switch (options.difficulty) {
+      case "easy":
+        searchQuery += ` comments:0..5`;
+        break;
+      // "medium" and "hard" — no comment proxy.
+      // The "hard" proxy (comments:>5) had poor correlation with actual difficulty;
+      // most high-comment issues are just popular, not necessarily hard.
+      // We rely on the over-fetch + AI estimator strategy instead.
+    }
+  }
+
+  // 7. Sort — GitHub issue search supports: sort:created, sort:comments, sort:updated, sort:reactions
+  if (options?.sort) {
+    switch (options.sort) {
+      case "oldest":
+        searchQuery += ` sort:created-asc`;
+        break;
+      case "most-commented":
+        searchQuery += ` sort:comments-desc`;
+        break;
+      case "recently-updated":
+        searchQuery += ` sort:updated-desc`;
+        break;
+      case "most-reactions":
+        searchQuery += ` sort:reactions-desc`;
+        break;
+      // "newest" is GitHub's default (sort:created-desc)
+      // "health-score" can't be sorted server-side — handled client-side
+    }
   }
 
   const result: {
@@ -232,6 +303,9 @@ interface RawIssueNode {
     avatarUrl: string;
   };
   comments: {
+    totalCount: number;
+  };
+  reactions: {
     totalCount: number;
   };
   repository: {
