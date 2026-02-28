@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { SessionProvider } from "@/components/SessionProvider";
 import { Header } from "@/components/Header";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { GoogleAnalytics } from "@/components/GoogleAnalytics";
+import { CookieConsent } from "@/components/CookieConsent";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -83,12 +85,14 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <GoogleAnalytics />
         <SessionProvider>
           <TooltipProvider>
             <Header />
             <main>{children}</main>
           </TooltipProvider>
         </SessionProvider>
+        <CookieConsent />
       </body>
     </html>
   );
