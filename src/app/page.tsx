@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -63,12 +63,14 @@ const STATIC_STATS = [
 
 export default function HomePage() {
   const [query, setQuery] = useState("");
-  const [reposIndexed, setReposIndexed] = useState(0);
+  const [reposIndexed, setReposIndexed] = useState<number | null>(null);
+  const [displayedCount, setDisplayedCount] = useState(0);
   const [surveyVote, setSurveyVote] = useState<"yes" | "no" | null>(null);
   const [surveyResults, setSurveyResults] = useState<{ yes: number; no: number } | null>(null);
   const [surveyLoading, setSurveyLoading] = useState(false);
   const router = useRouter();
   const { data: session } = useSession();
+  const animFrameRef = useRef<number | null>(null);
 
   // Redirect to onboarding if user is signed in but hasn't completed it
   useEffect(() => {
@@ -89,8 +91,37 @@ export default function HomePage() {
     fetch("/api/stats")
       .then((res) => res.json())
       .then((data) => setReposIndexed(data.reposIndexed || 0))
-      .catch(() => {});
+      .catch(() => setReposIndexed(0));
   }, []);
+
+  // Animate count-up when reposIndexed loads
+  useEffect(() => {
+    if (reposIndexed === null) return;
+    if (reposIndexed === 0) {
+      setDisplayedCount(0);
+      return;
+    }
+
+    const duration = 800;
+    const start = performance.now();
+    const target = reposIndexed;
+
+    const step = (now: number) => {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      // Ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplayedCount(Math.round(eased * target));
+      if (progress < 1) {
+        animFrameRef.current = requestAnimationFrame(step);
+      }
+    };
+
+    animFrameRef.current = requestAnimationFrame(step);
+    return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+  }, [reposIndexed]);
 
   // Load survey state from localStorage
   useEffect(() => {
@@ -304,7 +335,11 @@ export default function HomePage() {
                 <Star className="h-5 w-5 text-emerald-500" />
               </div>
               <div>
-                <p className="text-lg font-bold">{reposIndexed.toLocaleString()}</p>
+                {reposIndexed === null ? (
+                  <div className="h-5 w-10 animate-pulse rounded bg-muted" />
+                ) : (
+                  <p className="text-lg font-bold">{displayedCount.toLocaleString()}</p>
+                )}
                 <p className="text-xs text-muted-foreground">Repos Indexed</p>
               </div>
             </div>
