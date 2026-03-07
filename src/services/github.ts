@@ -158,7 +158,7 @@ function createGraphQLClient(token: string) {
 }
 
 function getToken(userToken?: string): string {
-  return userToken || process.env.GITHUB_PAT || "";
+  return userToken || "";
 }
 
 // Default labels applied when user hasn't customized their selection

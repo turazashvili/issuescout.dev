@@ -70,7 +70,6 @@ Create `.env.local` from `.env.example`:
 | `NEXTAUTH_URL` | Yes | App URL (`http://localhost:3000` for dev) |
 | `MONGODB_URI` | Yes | MongoDB Atlas connection string |
 | `OPENAI_API_KEY` | Optional | OpenAI API key for GPT-4o-mini. Without it, difficulty estimation uses rule-based only. |
-| `GITHUB_PAT` | Optional | GitHub PAT for unauthenticated fallback |
 | `NEXT_PUBLIC_SITE_URL` | Optional | Site URL for sitemap, OG tags, canonical URLs. Defaults to `http://localhost:3000`. Set to your production domain for deployment. |
 | `NEXT_PUBLIC_GA_MEASUREMENT_ID` | Optional | Google Analytics 4 Measurement ID (e.g., `G-XXXXXXXXXX`). If unset, no analytics are loaded. |
 

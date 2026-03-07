@@ -91,7 +91,7 @@ export async function GET(
     const number = parseInt(numberStr);
 
     const session = await auth();
-    const token = session?.accessToken || process.env.GITHUB_PAT || "";
+    const token = session?.accessToken;
 
     if (!token) {
       return NextResponse.json(
