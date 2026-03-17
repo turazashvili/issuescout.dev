@@ -13,7 +13,7 @@
 IssueScout is an open source issue discovery platform that surfaces GitHub "good first issue" labeled issues enriched with community health scores, AI difficulty estimation, and personalized recommendations. Stop scrolling through abandoned repos and mislabeled issues — find welcoming projects that match your skills.
 
 <p align="center">
-  <strong><a href="https://issuescout-delta.vercel.app">Live Demo</a></strong>
+  <strong><a href="https://issuescout.dev">Live Demo</a></strong>
 </p>
 
 <!-- Add a screenshot here: ![IssueScout Screenshot](docs/screenshot.png) -->
@@ -129,7 +129,7 @@ A score of 70+ (green) means the repo actively welcomes contributors. Below 40 (
 
 ## Analytics & Privacy
 
-The hosted version at [issuescout-delta.vercel.app](https://issuescout-delta.vercel.app) uses Google Analytics (GA4) to understand usage patterns. Analytics are **only loaded after explicit cookie consent** — a banner asks users to accept or decline before any tracking scripts load. If you self-host, you can remove or replace the analytics component in `src/components/GoogleAnalytics.tsx`.
+The hosted version at [issuescout.dev](https://issuescout.dev) uses Google Analytics (GA4) to understand usage patterns. Analytics are **only loaded after explicit cookie consent** — a banner asks users to accept or decline before any tracking scripts load. If you self-host, you can remove or replace the analytics component in `src/components/GoogleAnalytics.tsx`.
 
 ## Supported By
 
