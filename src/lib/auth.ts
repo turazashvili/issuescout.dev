@@ -8,6 +8,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     GitHub({
       clientId: process.env.GITHUB_ID,
       clientSecret: process.env.GITHUB_SECRET,
+      // GitHub includes this issuer in OAuth callbacks (RFC 9207).
+      issuer: "https://github.com/login/oauth",
       authorization: {
         params: {
           scope: "read:user user:email",
